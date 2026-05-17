@@ -4,6 +4,7 @@ import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { Layout } from '../components/Layout';
 
 export const AppVendedor: React.FC = () => {
   const [atividade_ativa, setAtividadeAtiva] = useState<any>(null);
@@ -93,28 +94,18 @@ export const AppVendedor: React.FC = () => {
   });
 
   if (rotaLoading) {
-    return <div className="p-8 text-center">Carregando rota do dia...</div>;
+    return <Layout><div className="p-8 text-center">Carregando rota do dia...</div></Layout>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <Layout>
+    <div>
       {/* HEADER */}
-      <div className="bg-white border-b p-4 sticky top-0 z-10 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Rota do Dia</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            {rota ? `${rota?.clientes_sequencia?.length || 0} clientes | Meta: ${LIMITS.META_VISITAS_DIA} visitas` : 'Nenhuma rota planejada para hoje'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{usuario?.nome}</span>
-          <button
-            onClick={handleLogout}
-            className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-          >
-            Sair
-          </button>
-        </div>
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <h1 className="text-xl font-bold text-gray-900">Rota do Dia</h1>
+        <p className="text-sm text-gray-600 mt-1">
+          {rota ? `${rota?.clientes_sequencia?.length || 0} clientes | Meta: ${LIMITS.META_VISITAS_DIA} visitas` : 'Nenhuma rota planejada para hoje'}
+        </p>
       </div>
 
       {/* SEM ROTA PLANEJADA */}
@@ -262,6 +253,7 @@ export const AppVendedor: React.FC = () => {
       </div>
       </>)}
     </div>
+    </Layout>
   );
 };
 

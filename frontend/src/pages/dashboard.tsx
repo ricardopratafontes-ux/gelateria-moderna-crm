@@ -5,6 +5,7 @@ import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { Layout } from '../components/Layout';
 
 export const Dashboard: React.FC = () => {
   const [data, setData] = useState<any>(null);
@@ -35,26 +36,16 @@ export const Dashboard: React.FC = () => {
   }, [dashboardData]);
 
   if (loading) {
-    return <div className="p-8 text-center">Carregando dashboard...</div>;
+    return <Layout><div className="p-8 text-center">Carregando dashboard...</div></Layout>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <Layout>
+    <div className="space-y-8">
       {/* HEADER */}
-      <div className="mb-8 flex justify-between items-start">
-        <div>
-          <h1 className="text-4xl font-bold text-gray-900">Dashboard Gerente</h1>
-          <p className="text-gray-600 mt-2">Acompanhamento em tempo real - {new Date().toLocaleDateString('pt-BR')}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500">{usuario?.nome}</span>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-          >
-            Sair
-          </button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-600 mt-1">Acompanhamento em tempo real - {new Date().toLocaleDateString('pt-BR')}</p>
       </div>
 
       {/* SECAO 1: VISITAS DO DIA */}
@@ -228,6 +219,7 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
     </div>
+    </Layout>
   );
 };
 
