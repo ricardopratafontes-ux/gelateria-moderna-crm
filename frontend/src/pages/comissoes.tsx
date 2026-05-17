@@ -102,8 +102,7 @@ export const ComissoesPage: React.FC = () => {
             <div
               key={tipo}
               onClick={() => setFiltroTipo(filtroTipo === tipo ? '' : tipo)}
-              className={`bg-white rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-md ${filtroTipo === tipo ? 'ring-2 ring-offset-1' : ''}`}
-              style={filtroTipo === tipo ? { ringColor: COLORS.PRIMARY } : {}}
+              className={`bg-white rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-md ${filtroTipo === tipo ? 'ring-2 ring-offset-1 ring-red-500' : ''}`}
             >
               <p className="text-xs text-gray-600 font-medium">{getTipoLabel(tipo).split('(')[0]}</p>
               <p className="text-xl font-bold text-gray-900 mt-1">R$ {total.toFixed(0)}</p>
