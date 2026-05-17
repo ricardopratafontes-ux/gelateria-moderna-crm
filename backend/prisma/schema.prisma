@@ -1,0 +1,268 @@
+// Prisma Schema - CRM Gelateria Moderna
+// Alinhado com rotas/services em 16/05/2026
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// TABELA 1: CLIENTES
+model Cliente {
+  id                        String   @id @default(cuid())
+  nome_fantasia             String   @db.VarChar(255)
+  cnpj                      String?  @unique @db.VarChar(20)
+  segmento                  String?  @db.VarChar(50)
+  endereco                  String?  @db.Text
+  latitude                  Decimal? @db.Decimal(10, 8)
+  longitude                 Decimal? @db.Decimal(11, 8)
+  telefone                  String?  @db.VarChar(20)
+  email                     String?  @db.VarChar(255)
+  whatsapp                  String?  @db.VarChar(20)
+  total_vendas_historico    Decimal? @db.Decimal(10, 2)
+  media_mensal_historica    Decimal? @db.Decimal(10, 2)
+  media_mensal_customizada  Decimal? @db.Decimal(10, 2)
+  ultima_visita             DateTime?
+  status                    String   @default("ativo") @db.VarChar(20)
+  omie_codigo               String?  @db.VarChar(50)
+  origem                    String?  @db.VarChar(50)
+  data_cadastro             DateTime @default(now())
+  observacoes               String?  @db.Text
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  atividades                Atividade[]
+  propostas                 Proposta[]
+  vendas                    Venda[]
+  leads                     Lead[]
+  freezers                  Freezer[]
+  comissoes                 Comissao[]
+
+  @@index([segmento])
+  @@index([status])
+  @@index([ultima_visita])
+}
+
+// TABELA 2: VENDEDORES
+model Vendedor {
+  id                String   @id @default(cuid())
+  nome              String   @db.VarChar(255)
+  email             String   @unique @db.VarChar(255)
+  whatsapp          String?  @db.VarChar(20)
+  regiao            String?  @db.VarChar(100)
+  meta_visitas_dia  Int      @default(10)
+  status            String   @default("ativo") @db.VarChar(20)
+  data_admissao     DateTime @default(now())
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  rotas             Rota[]
+  atividades        Atividade[]
+  propostas         Proposta[]
+  vendas            Venda[]
+  leads             Lead[]
+  comissoes         Comissao[]
+
+  @@index([status])
+}
+
+// TABELA 3: ROTAS (planejamento diario)
+model Rota {
+  id                      String   @id @default(cuid())
+  vendedor_id             String
+  vendedor                Vendedor @relation(fields: [vendedor_id], references: [id], onDelete: Cascade)
+  data_rota               DateTime @db.Date
+  clientes_sequencia      Json?
+  status                  String   @default("planejada") @db.VarChar(20)
+  distancia_total_km      Decimal? @db.Decimal(8, 2)
+  tempo_estimado_minutos  Int?
+  hora_planejamento       DateTime?
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  atividades              Atividade[]
+
+  @@index([vendedor_id])
+  @@index([data_rota])
+  @@index([status])
+}
+
+// TABELA 4: ATIVIDADES (registro em tempo real)
+model Atividade {
+  id                  String   @id @default(cuid())
+  rota_id             String?
+  rota                Rota?    @relation(fields: [rota_id], references: [id], onDelete: SetNull)
+  cliente_id          String
+  cliente             Cliente  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+  vendedor_id         String
+  vendedor            Vendedor @relation(fields: [vendedor_id], references: [id], onDelete: Cascade)
+  tipo                String   @db.VarChar(50)
+  data_hora_inicio    DateTime @default(now())
+  data_hora_fim       DateTime?
+  duracao_minutos     Int?
+  latitude            Decimal? @db.Decimal(10, 8)
+  longitude           Decimal? @db.Decimal(11, 8)
+  latitude_fim        Decimal? @db.Decimal(10, 8)
+  longitude_fim       Decimal? @db.Decimal(11, 8)
+  resultado           String?  @db.VarChar(50)
+  valor_pedido        Decimal? @db.Decimal(10, 2)
+  observacoes         String?  @db.Text
+  fotos               Json?
+  created_at          DateTime @default(now())
+
+  @@index([rota_id])
+  @@index([cliente_id])
+  @@index([vendedor_id])
+  @@index([data_hora_inicio])
+}
+
+// TABELA 5: PROPOSTAS
+model Proposta {
+  id              String   @id @default(cuid())
+  codigo          String?  @unique @db.VarChar(50)
+  cliente_id      String
+  cliente         Cliente  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+  vendedor_id     String
+  vendedor        Vendedor @relation(fields: [vendedor_id], references: [id], onDelete: Cascade)
+  itens           Json?
+  valor_total     Decimal? @db.Decimal(10, 2)
+  status          String   @default("enviada") @db.VarChar(20)
+  validade        DateTime?
+  data_criacao    DateTime @default(now())
+  data_aceite     DateTime?
+  observacoes     String?  @db.Text
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  vendas          Venda[]
+
+  @@index([cliente_id])
+  @@index([vendedor_id])
+  @@index([status])
+  @@index([data_criacao])
+}
+
+// TABELA 6: VENDAS (sincronizado com OMIE)
+model Venda {
+  id                String   @id @default(cuid())
+  cliente_id        String
+  cliente           Cliente  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+  vendedor_id       String
+  vendedor          Vendedor @relation(fields: [vendedor_id], references: [id], onDelete: Cascade)
+  proposta_id       String?
+  proposta          Proposta? @relation(fields: [proposta_id], references: [id], onDelete: SetNull)
+  omie_pedido_id    String?  @db.VarChar(50)
+  data_venda        DateTime @default(now())
+  valor_total       Decimal  @db.Decimal(10, 2)
+  status            String   @default("vendas") @db.VarChar(50)
+  data_recebimento  DateTime?
+  valor_recebido    Decimal? @db.Decimal(10, 2)
+  data_atualizacao  DateTime?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  comissoes         Comissao[]
+
+  @@index([cliente_id])
+  @@index([vendedor_id])
+  @@index([status])
+  @@index([data_recebimento])
+}
+
+// TABELA 7: LEADS
+model Lead {
+  id                      String   @id @default(cuid())
+  nome                    String   @db.VarChar(255)
+  telefone                String?  @db.VarChar(20)
+  email                   String?  @db.VarChar(255)
+  empresa                 String?  @db.VarChar(255)
+  segmento                String?  @db.VarChar(50)
+  origem                  String?  @db.VarChar(50)
+  vendedor_id             String?
+  vendedor                Vendedor? @relation(fields: [vendedor_id], references: [id], onDelete: SetNull)
+  status                  String   @default("novo") @db.VarChar(50)
+  data_criacao            DateTime @default(now())
+  data_ultimo_contato     DateTime?
+  data_conversao          DateTime?
+  cliente_id_convertido   String?
+  observacoes             String?  @db.Text
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  cliente                 Cliente? @relation(fields: [cliente_id_convertido], references: [id], onDelete: SetNull)
+
+  @@index([vendedor_id])
+  @@index([status])
+  @@index([data_criacao])
+}
+
+// TABELA 8: COMISSOES
+model Comissao {
+  id              String   @id @default(cuid())
+  vendedor_id     String
+  vendedor        Vendedor @relation(fields: [vendedor_id], references: [id], onDelete: Cascade)
+  venda_id        String?
+  venda           Venda?   @relation(fields: [venda_id], references: [id], onDelete: SetNull)
+  cliente_id      String?
+  cliente         Cliente? @relation(fields: [cliente_id], references: [id], onDelete: SetNull)
+  tipo_comissao   String   @db.VarChar(50)
+  valor           Decimal  @db.Decimal(10, 2)
+  percentual      Decimal? @db.Decimal(5, 2)
+  valor_base      Decimal? @db.Decimal(10, 2)
+  status          String   @default("pendente") @db.VarChar(20)
+  data_calculo    DateTime @default(now())
+  data_pagamento  DateTime?
+  descricao       String?  @db.Text
+  created_at      DateTime @default(now())
+
+  @@index([vendedor_id])
+  @@index([tipo_comissao])
+  @@index([status])
+  @@index([data_calculo])
+}
+
+// TABELA 9: FREEZERS
+model Freezer {
+  id                      String   @id @default(cuid())
+  cliente_id              String
+  cliente                 Cliente  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+  tipo                    String?  @db.VarChar(50)
+  capacidade_kg           Decimal? @db.Decimal(8, 2)
+  data_ultima_manutencao  DateTime?
+  status                  String   @default("funcionando") @db.VarChar(20)
+  notas                   String?  @db.Text
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  @@index([cliente_id])
+}
+
+// TABELA 10: PARAMETROS
+model Parametro {
+  id          String   @id @default(cuid())
+  chave       String   @unique @db.VarChar(100)
+  valor       String?  @db.Text
+  descricao   String?  @db.Text
+  updated_at  DateTime @default(now()) @updatedAt
+
+  @@index([chave])
+}
+
+// TABELA 11: USUARIOS
+model Usuario {
+  id            String   @id @default(cuid())
+  email         String   @unique @db.VarChar(255)
+  senha_hash    String   @db.VarChar(255)
+  nome          String   @db.VarChar(255)
+  role          String   @default("vendedor") @db.VarChar(50)
+  ativo         Boolean  @default(true)
+  ultimo_login  DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+}
