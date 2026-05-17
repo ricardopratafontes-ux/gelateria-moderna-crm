@@ -41,7 +41,7 @@ export const whatsappService = {
 
   // ENVIAR PROPOSTA VIA WHATSAPP
   async enviarProposta(telefone: string, cliente: any, link_proposta: string) {
-    const mensagem = `Ola ${cliente.nome}!\n\nPreparei uma proposta especial de gelato para voce!\n\nClique no link abaixo para visualizar e confirmar seu pedido:\n${link_proposta}\n\nQualquer duvida, e so chamar!`;
+    const mensagem = `Ola ${cliente.nome_fantasia}!\n\nPreparei uma proposta especial de gelato para voce!\n\nClique no link abaixo para visualizar e confirmar seu pedido:\n${link_proposta}\n\nQualquer duvida, e so chamar!`;
 
     return this.enviarMensagem(telefone, mensagem);
   },
