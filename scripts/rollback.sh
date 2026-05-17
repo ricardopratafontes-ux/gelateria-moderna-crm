@@ -35,8 +35,10 @@ if [ "$OPCAO" == "1" ]; then
   echo "✅ Backup restaurado"
 
   echo "🚀 Redeployando..."
-  vercel --prod --token=$VERCEL_TOKEN --scope=seu-scope
-  railway up --service backend --environment production
+  git add -A
+  git commit -m "rollback: restaurar backup $BACKUP_NAME"
+  git push origin main
+  echo "   Render + Vercel redeployam automaticamente via git push."
 
 elif [ "$OPCAO" == "2" ]; then
   echo "📜 Últimos commits:"
@@ -44,12 +46,10 @@ elif [ "$OPCAO" == "2" ]; then
   read -p "Hash do commit para reverter: " COMMIT_HASH
 
   echo "♻️  Revertendo para commit $COMMIT_HASH..."
-  git reset --hard $COMMIT_HASH
-  git push origin main --force
-
-  echo "🚀 Redeployando..."
-  vercel --prod --token=$VERCEL_TOKEN --scope=seu-scope
-  railway up --service backend --environment production
+  git revert --no-commit $COMMIT_HASH..HEAD
+  git commit -m "rollback: reverter para $COMMIT_HASH"
+  git push origin main
+  echo "   Render + Vercel redeployam automaticamente via git push."
 
 else
   echo "❌ Opção inválida"

@@ -41,9 +41,11 @@ fi
 cd ..
 
 echo "🚀 Deployando em staging..."
-vercel --prod --token=$VERCEL_TOKEN --scope=seu-scope
-railway up --service backend --environment staging
+echo "   Para preview, faça push em branch separada:"
+echo "   git push origin develop"
+echo "   Vercel gera preview automaticamente para branches não-main."
+echo "   Render: apenas main tem auto-deploy (free tier não suporta staging)."
 
 echo "✅ Preview concluído!"
-echo "Frontend: https://staging-gelateria-moderna.vercel.app"
-echo "Backend: https://staging-gelateria-api.railway.app"
+echo "Frontend (preview): verifique URL no dashboard Vercel"
+echo "Backend: https://gelateria-moderna-crm.onrender.com"

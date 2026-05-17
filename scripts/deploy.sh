@@ -69,11 +69,11 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "🚀 Deployando em produção..."
-vercel --prod --token=$VERCEL_TOKEN --scope=seu-scope
-railway up --service backend --environment production
+echo "🚀 Deploy em produção..."
+echo "   Render: deploy automático via git push (já feito acima)"
+echo "   Vercel: deploy automático via git push (já feito acima)"
 
 echo "✅ Deploy concluído!"
 echo "Frontend: https://gelateria-moderna.vercel.app"
-echo "Backend: https://gelateria-api.railway.app"
+echo "Backend: https://gelateria-moderna-crm.onrender.com"
 echo "Backup: $BACKUP_DIR"
