@@ -3,10 +3,19 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 export const Dashboard: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { usuario, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   // BUSCAR DADOS DO DASHBOARD
   const { data: dashboardData } = useQuery({
@@ -32,9 +41,20 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       {/* HEADER */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">Dashboard Gerente</h1>
-        <p className="text-gray-600 mt-2">Acompanhamento em tempo real - {new Date().toLocaleDateString('pt-BR')}</p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-4xl font-bold text-gray-900">Dashboard Gerente</h1>
+          <p className="text-gray-600 mt-2">Acompanhamento em tempo real - {new Date().toLocaleDateString('pt-BR')}</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-500">{usuario?.nome}</span>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+          >
+            Sair
+          </button>
+        </div>
       </div>
 
       {/* SECAO 1: VISITAS DO DIA */}

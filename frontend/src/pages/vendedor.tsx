@@ -2,11 +2,20 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 export const AppVendedor: React.FC = () => {
   const [atividade_ativa, setAtividadeAtiva] = useState<any>(null);
   const [gps_ativo, setGpsAtivo] = useState(false);
   const [fotos, setFotos] = useState<string[]>([]);
+  const { usuario, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   // BUSCAR ROTA DO DIA
   const { data: rota } = useQuery({
@@ -85,11 +94,22 @@ export const AppVendedor: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* HEADER */}
-      <div className="bg-white border-b p-4 sticky top-0 z-10">
-        <h1 className="text-2xl font-bold text-gray-900">Rota do Dia</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          {rota?.clientes_sequencia?.length || 0} clientes | Meta: {LIMITS.META_VISITAS_DIA} visitas
-        </p>
+      <div className="bg-white border-b p-4 sticky top-0 z-10 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Rota do Dia</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            {rota?.clientes_sequencia?.length || 0} clientes | Meta: {LIMITS.META_VISITAS_DIA} visitas
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">{usuario?.nome}</span>
+          <button
+            onClick={handleLogout}
+            className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+          >
+            Sair
+          </button>
+        </div>
       </div>
 
       {/* CONTADOR DE VISITAS */}
