@@ -14,6 +14,7 @@ import atividadesRoutes from './routes/atividades';
 import propostasRoutes from './routes/propostas';
 import comissoesRoutes from './routes/comissoes';
 import leadsRoutes from './routes/leads';
+import dashboardRoutes from './routes/dashboard';
 
 // Importar jobs
 import { iniciarPlanejamentoRotaDiaria } from './jobs/planejamentoRotaDiaria';
@@ -45,6 +46,7 @@ app.use('/api/atividades', atividadesRoutes);
 app.use('/api/propostas', propostasRoutes);
 app.use('/api/comissoes', comissoesRoutes);
 app.use('/api/leads', leadsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {

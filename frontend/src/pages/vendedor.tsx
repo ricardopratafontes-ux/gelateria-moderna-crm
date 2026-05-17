@@ -12,7 +12,7 @@ export const AppVendedor: React.FC = () => {
   const { data: rota } = useQuery({
     queryKey: ['rota', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
-      const response = await api.get('/api/rotas/dia/' + new Date().toISOString().split('T')[0]);
+      const response = await api.get('/rotas/dia/' + new Date().toISOString().split('T')[0]);
       return response.data;
     }
   });
@@ -26,7 +26,7 @@ export const AppVendedor: React.FC = () => {
         });
       }
 
-      const response = await api.post('/api/atividades', {
+      const response = await api.post('/atividades', {
         rota_id: rota?.id,
         cliente_id,
         tipo: 'venda',
@@ -62,14 +62,14 @@ export const AppVendedor: React.FC = () => {
   // GERAR PROPOSTA
   const gerarProposta = useMutation({
     mutationFn: async (cliente_id: string) => {
-      const response = await api.post('/api/propostas', {
+      const response = await api.post('/propostas', {
         cliente_id,
         vendedor_id: 'seu-vendedor-id',
         itens: [],
         valor_total: 0
       });
 
-      await api.post('/api/whatsapp/enviar', {
+      await api.post('/whatsapp/enviar', {
         telefone: response.data.cliente.whatsapp,
         mensagem: `Ola! Segue sua proposta de gelato: ${response.data.codigo}`
       });

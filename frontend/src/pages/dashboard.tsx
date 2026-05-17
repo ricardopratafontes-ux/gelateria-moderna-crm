@@ -12,7 +12,7 @@ export const Dashboard: React.FC = () => {
   const { data: dashboardData } = useQuery({
     queryKey: ['dashboard', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
-      const response = await api.get('/api/dashboard/hoje');
+      const response = await api.get('/dashboard/hoje');
       return response.data;
     },
     refetchInterval: 30000 // Atualizar a cada 30s
