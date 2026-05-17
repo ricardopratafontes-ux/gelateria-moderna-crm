@@ -2,21 +2,12 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
-import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 
 export const AppVendedor: React.FC = () => {
   const [atividade_ativa, setAtividadeAtiva] = useState<any>(null);
   const [gps_ativo, setGpsAtivo] = useState(false);
   const [fotos, setFotos] = useState<string[]>([]);
-  const { usuario, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   // BUSCAR ROTA DO DIA
   const { data: rota, isLoading: rotaLoading } = useQuery({

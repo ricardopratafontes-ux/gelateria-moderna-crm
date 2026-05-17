@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { COLORS, FREQUENCIA_IDEAL } from '../utils/constants';
+import { COLORS } from '../utils/constants';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
 

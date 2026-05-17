@@ -1,22 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
-import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 
 export const Dashboard: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { usuario, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   // BUSCAR DADOS DO DASHBOARD
   const { data: dashboardData } = useQuery({
