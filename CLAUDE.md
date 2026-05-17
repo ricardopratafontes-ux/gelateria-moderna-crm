@@ -14,7 +14,7 @@
 - Axios (requisições HTTP)
 
 ### Backend
-- Node.js 18+ + Express (Railway)
+- Node.js 18+ + Express (Render)
 - PostgreSQL (Supabase)
 - Prisma ORM (queries ao banco)
 - JWT (autenticação)
@@ -29,7 +29,7 @@
 
 ### Infraestrutura
 - Vercel (frontend deploy)
-- Railway (backend deploy)
+- Render (backend deploy)
 - Supabase (banco + auth + storage)
 - GitHub (versionamento)
 
@@ -72,7 +72,7 @@ projeto-crm-gelateria/
 │   ├── tsconfig.json
 │   └── .env.local               # Variáveis de ambiente
 │
-├── backend/                     # Node.js API (Railway)
+├── backend/                     # Node.js API (Render)
 │   ├── src/
 │   │   ├── routes/              # Endpoints da API
 │   │   │   ├── clientes.ts
@@ -451,7 +451,7 @@ if (tempo_parado > 15 * 60 * 1000 && desvio < 500) {
 
 ### Produção
 - Frontend: https://gelateria-moderna.vercel.app
-- Backend: https://gelateria-api.railway.app
+- Backend: https://gelateria-moderna-crm.onrender.com
 - Banco de dados: Supabase dashboard
 
 ### Desenvolvimento
@@ -472,7 +472,7 @@ if (tempo_parado > 15 * 60 * 1000 && desvio < 500) {
 ### Painéis
 - Supabase (banco): https://app.supabase.com/project/seu-projeto
 - Vercel (frontend): https://vercel.com/dashboard
-- Railway (backend): https://railway.app/dashboard
+- Render (backend): https://dashboard.render.com
 - GitHub (código): https://github.com/seu-usuario/gelateria-crm
 
 ---
