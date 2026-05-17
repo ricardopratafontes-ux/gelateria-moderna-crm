@@ -18,11 +18,16 @@ export const AppVendedor: React.FC = () => {
   };
 
   // BUSCAR ROTA DO DIA
-  const { data: rota } = useQuery({
+  const { data: rota, isLoading: rotaLoading } = useQuery({
     queryKey: ['rota', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
-      const response = await api.get('/rotas/dia/' + new Date().toISOString().split('T')[0]);
-      return response.data;
+      try {
+        const response = await api.get('/rotas/dia/' + new Date().toISOString().split('T')[0]);
+        return response.data;
+      } catch (err: any) {
+        if (err.response?.status === 404) return null;
+        throw err;
+      }
     }
   });
 
@@ -53,7 +58,7 @@ export const AppVendedor: React.FC = () => {
   // CONCLUIR ATIVIDADE
   const concluirAtividade = useMutation({
     mutationFn: async (resultado: any) => {
-      const response = await api.put(`/api/atividades/${atividade_ativa.id}`, {
+      const response = await api.put(`/atividades/${atividade_ativa.id}`, {
         data_hora_fim: new Date(),
         resultado: resultado.resultado,
         tipo: resultado.tipo,
@@ -87,7 +92,7 @@ export const AppVendedor: React.FC = () => {
     }
   });
 
-  if (!rota) {
+  if (rotaLoading) {
     return <div className="p-8 text-center">Carregando rota do dia...</div>;
   }
 
@@ -98,7 +103,7 @@ export const AppVendedor: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Rota do Dia</h1>
           <p className="text-sm text-gray-600 mt-1">
-            {rota?.clientes_sequencia?.length || 0} clientes | Meta: {LIMITS.META_VISITAS_DIA} visitas
+            {rota ? `${rota?.clientes_sequencia?.length || 0} clientes | Meta: ${LIMITS.META_VISITAS_DIA} visitas` : 'Nenhuma rota planejada para hoje'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -111,6 +116,19 @@ export const AppVendedor: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* SEM ROTA PLANEJADA */}
+      {!rota && (
+        <div className="p-8 text-center">
+          <div className="text-6xl mb-4">📋</div>
+          <h2 className="text-xl font-bold text-gray-700 mb-2">Nenhuma rota para hoje</h2>
+          <p className="text-gray-500">A rota diária será gerada automaticamente às 7h.</p>
+          <p className="text-gray-500 mt-1">Contate o gerente se precisar de uma rota manual.</p>
+        </div>
+      )}
+
+      {rota && (<>
+      {/* CONTEUDO DA ROTA */}
 
       {/* CONTADOR DE VISITAS */}
       <div className="bg-white border-b p-4 flex justify-between items-center">
@@ -242,6 +260,7 @@ export const AppVendedor: React.FC = () => {
           </div>
         ))}
       </div>
+      </>)}
     </div>
   );
 };
