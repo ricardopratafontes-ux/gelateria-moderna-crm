@@ -460,7 +460,7 @@ if (tempo_parado > 15 * 60 * 1000 && desvio < 500) {
 - Supabase Studio: https://app.supabase.com
 
 ### Repositório
-- GitHub: https://github.com/seu-usuario/gelateria-crm
+- GitHub: https://github.com/ricardopratafontes-ux/gelateria-moderna-crm
 - Branch principal: `main` (produção)
 - Branch desenvolvimento: `develop`
 
@@ -470,10 +470,10 @@ if (tempo_parado > 15 * 60 * 1000 && desvio < 500) {
 - TextMeBot: https://api.textmebot.com/send (API key)
 
 ### Painéis
-- Supabase (banco): https://app.supabase.com/project/seu-projeto
+- Supabase (banco): https://supabase.com/dashboard/project/svruwxhbpuobmcifrjcp
 - Vercel (frontend): https://vercel.com/dashboard
 - Render (backend): https://dashboard.render.com
-- GitHub (código): https://github.com/seu-usuario/gelateria-crm
+- GitHub (código): https://github.com/ricardopratafontes-ux/gelateria-moderna-crm
 
 ---
 
