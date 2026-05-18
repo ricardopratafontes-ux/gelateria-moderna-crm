@@ -1,4 +1,4 @@
-# 🚀 CLAUDE.md - CRM Gelateria Moderna
+# 🚀 CLAUDE.md - CRM de Vendas (Gelateria Moderna)
 
 ⚠️ **LEIA ESTE ARQUIVO NO INÍCIO DE CADA SESSÃO ANTES DE QUALQUER EDIÇÃO**
 
@@ -453,7 +453,7 @@ for (const cliente of clientes) { const match = mapa.get(normalizar(cliente.nome
 **Solução:** Usar EXCLUSIVAMENTE o sandbox bash via mount:
 ```bash
 # ✅ ÚNICO MÉTODO CORRETO para git no projeto
-cd "/sessions/great-ecstatic-curie/mnt/CRM Gelateria Moderna"
+cd "/sessions/great-ecstatic-curie/mnt/CRM de Vendas"
 git add -A && git commit -m "mensagem" && git push origin main
 ```
 
