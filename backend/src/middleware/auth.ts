@@ -6,6 +6,7 @@ export interface AuthRequest extends Request {
     id: string;
     email: string;
     role: string;
+    vendedor_id?: string | null;
   };
 }
 
@@ -25,9 +26,9 @@ export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
   }
 };
 
-export const generateToken = (userId: string, email: string, role: string) => {
+export const generateToken = (userId: string, email: string, role: string, vendedor_id?: string) => {
   return jwt.sign(
-    { id: userId, email, role },
+    { id: userId, email, role, vendedor_id: vendedor_id || null },
     process.env.JWT_SECRET || 'seu-secret-key',
     { expiresIn: '7d' }
   );

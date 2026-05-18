@@ -1,0 +1,18 @@
+A  do_git_push.bat
+A  frontend/src/components/MapaRota.tsx
+A  frontend/src/hooks/useFotos.ts
+M  frontend/src/pages/rotas.tsx
+M  frontend/src/pages/vendedor-registrar.tsx
+M  frontend/src/pages/vendedor.tsx
+A  git_log_temp.txt
+M  git_push_now.sh
+M  git_push_result.txt
+?? git_status_temp.txt
+[main 42f25c3] feat: GPS tracking, mapa Leaflet, fotos comprimidas
+ 9 files changed, 666 insertions(+), 279 deletions(-)
+ create mode 100644 do_git_push.bat
+ create mode 100644 frontend/src/components/MapaRota.tsx
+ create mode 100644 frontend/src/hooks/useFotos.ts
+ create mode 100644 git_log_temp.txt
+To https://github.com/ricardopratafontes-ux/gelateria-moderna-crm.git
+   19fbe1e..42f25c3  main -> main

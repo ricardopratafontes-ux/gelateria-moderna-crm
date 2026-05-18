@@ -119,22 +119,31 @@ router.post('/planejar', auth, async (req, res) => {
   }
 });
 
-// GET /api/rotas/dia/:data - Obter rota do dia
+// GET /api/rotas/dia/:data - Obter rota do dia (filtrada por vendedor_id se fornecido)
 router.get('/dia/:data', auth, async (req, res) => {
   try {
     const { data } = req.params;
+    const { vendedor_id } = req.query;
     const dataInicio = new Date(data);
     const dataFim = new Date(dataInicio.getTime() + 86400000);
 
+    const where: any = {
+      data_rota: {
+        gte: dataInicio,
+        lt: dataFim
+      }
+    };
+
+    // Se vendedor_id fornecido, filtrar por vendedor
+    if (vendedor_id) {
+      where.vendedor_id = vendedor_id as string;
+    }
+
     const rota = await prisma.rota.findFirst({
-      where: {
-        data_rota: {
-          gte: dataInicio,
-          lt: dataFim
-        }
-      },
+      where,
       include: {
-        atividades: true
+        atividades: true,
+        vendedor: { select: { nome: true } }
       }
     });
 

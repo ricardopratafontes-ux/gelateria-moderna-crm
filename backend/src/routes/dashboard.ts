@@ -6,8 +6,12 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // GET /api/dashboard/hoje - Dados do dashboard do dia
-router.get('/hoje', auth, async (_req, res) => {
+// Query params opcionais: vendedor_id (filtra dados por vendedor específico)
+router.get('/hoje', auth, async (req, res) => {
   try {
+    const { vendedor_id } = req.query;
+    const filtroVendedor = vendedor_id ? { vendedor_id: vendedor_id as string } : {};
+
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const amanha = new Date(hoje);
@@ -32,42 +36,47 @@ router.get('/hoje', auth, async (_req, res) => {
       // Clientes ativos
       prisma.cliente.count({ where: { status: 'ativo' } }),
 
-      // Visitas do dia
+      // Visitas do dia (filtradas por vendedor se fornecido)
       prisma.atividade.count({
         where: {
-          data_hora_inicio: { gte: hoje, lt: amanha }
+          data_hora_inicio: { gte: hoje, lt: amanha },
+          ...filtroVendedor
         }
       }),
 
-      // Vendas do mês
+      // Vendas do mês (filtradas por vendedor se fornecido)
       prisma.venda.aggregate({
         where: {
-          data_venda: { gte: inicioMes, lte: fimMes }
+          data_venda: { gte: inicioMes, lte: fimMes },
+          ...filtroVendedor
         },
         _sum: { valor_total: true },
         _count: true
       }),
 
-      // Leads abertos
+      // Leads abertos (filtrados por vendedor se fornecido)
       prisma.lead.count({
         where: {
-          status: { in: ['novo', 'contatado', 'interessado', 'proposta_enviada', 'negociando'] }
+          status: { in: ['novo', 'contatado', 'interessado', 'proposta_enviada', 'negociando'] },
+          ...filtroVendedor
         }
       }),
 
-      // Comissões do mês
+      // Comissões do mês (filtradas por vendedor se fornecido)
       prisma.comissao.aggregate({
         where: {
-          data_calculo: { gte: inicioMes, lte: fimMes }
+          data_calculo: { gte: inicioMes, lte: fimMes },
+          ...filtroVendedor
         },
         _sum: { valor: true },
         _count: true
       }),
 
-      // Rota do dia (primeira encontrada)
+      // Rota do dia (filtrada por vendedor se fornecido)
       prisma.rota.findFirst({
         where: {
-          data_rota: hoje
+          data_rota: hoje,
+          ...filtroVendedor
         },
         include: {
           vendedor: { select: { nome: true } }
@@ -89,8 +98,9 @@ router.get('/hoje', auth, async (_req, res) => {
       }
     });
 
-    // Últimas 5 atividades
+    // Últimas 5 atividades (filtradas por vendedor se fornecido)
     const ultimasAtividades = await prisma.atividade.findMany({
+      where: filtroVendedor,
       take: 5,
       orderBy: { data_hora_inicio: 'desc' },
       include: {

@@ -43,6 +43,7 @@ export const ClientesPage: React.FC = () => {
   const [segmentoImport, setSegmentoImport] = useState('RESTAURANTE');
   const [sincronizando, setSincronizando] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
+  const [geocodificando, setGeocodificando] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -187,6 +188,21 @@ export const ClientesPage: React.FC = () => {
     setTimeout(() => setSyncMsg(''), 8000);
   };
 
+  const geocodificarClientes = async () => {
+    setGeocodificando(true);
+    setSyncMsg('Geocodificando endereços...');
+    try {
+      const res = await api.post('/clientes/geocodificar');
+      const { geocodificados, total, erros } = res.data;
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      setSyncMsg(`Geocodificação: ${geocodificados}/${total} endereços convertidos em coordenadas.${erros?.length ? ` (${erros.length} erros)` : ''}`);
+    } catch (err: any) {
+      setSyncMsg(`Erro: ${err.response?.data?.error || err.message}`);
+    }
+    setGeocodificando(false);
+    setTimeout(() => setSyncMsg(''), 8000);
+  };
+
   // Filtrar por busca
   const clientesFiltrados = (clientes as Cliente[]).filter(c =>
     !busca || c.nome_fantasia?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -210,6 +226,14 @@ export const ClientesPage: React.FC = () => {
               style={{ borderColor: '#3b82f6', color: '#3b82f6' }}
             >
               {sincronizando ? 'Sincronizando...' : '🔄 Sincronizar OMIE'}
+            </button>
+            <button
+              onClick={geocodificarClientes}
+              disabled={geocodificando}
+              className="px-4 py-2 border-2 rounded-lg font-semibold text-sm"
+              style={{ borderColor: '#22c55e', color: '#22c55e' }}
+            >
+              {geocodificando ? 'Geocodificando...' : '📍 Geocodificar'}
             </button>
             <button
               onClick={() => { setBuscaOmie(''); setResultadosOmie([]); setShowImportOmie(true); }}

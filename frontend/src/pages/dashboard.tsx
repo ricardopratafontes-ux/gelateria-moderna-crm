@@ -4,16 +4,19 @@ import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tool
 import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
+import { useAuth } from '../hooks/useAuth';
 
 export const Dashboard: React.FC = () => {
+  const { usuario } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // BUSCAR DADOS DO DASHBOARD
+  // BUSCAR DADOS DO DASHBOARD (filtrado por vendedor se logado como vendedor)
   const { data: dashboardData, isError } = useQuery({
-    queryKey: ['dashboard', new Date().toISOString().split('T')[0]],
+    queryKey: ['dashboard', new Date().toISOString().split('T')[0], usuario?.vendedor_id],
     queryFn: async () => {
-      const response = await api.get('/dashboard/hoje');
+      const vendedorParam = usuario?.vendedor_id ? `?vendedor_id=${usuario.vendedor_id}` : '';
+      const response = await api.get('/dashboard/hoje' + vendedorParam);
       return response.data;
     },
     refetchInterval: 30000 // Atualizar a cada 30s

@@ -2,6 +2,7 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { auth } from '../middleware/auth';
 import { omieService } from '../services/omieService';
+import { googleMapsService } from '../services/googleMapsService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -683,6 +684,66 @@ router.post('/recalcular-medias', auth, async (req, res) => {
   } catch (error) {
     console.error('Erro ao recalcular médias:', error);
     res.status(500).json({ error: 'Erro ao recalcular médias' });
+  }
+});
+
+// ============================================================
+// POST /api/clientes/geocodificar - Geocodificar clientes sem coordenadas
+// Usa Google Maps Geocoding API para preencher lat/lon com base no endereço
+// ============================================================
+router.post('/geocodificar', auth, async (req, res) => {
+  try {
+    // Buscar clientes ativos que têm endereço mas NÃO têm coordenadas
+    const clientesSemCoord = await prisma.cliente.findMany({
+      where: {
+        status: 'ativo',
+        endereco: { not: null },
+        OR: [
+          { latitude: null },
+          { longitude: null }
+        ]
+      },
+      select: { id: true, nome_fantasia: true, endereco: true }
+    });
+
+    if (clientesSemCoord.length === 0) {
+      return res.json({ message: 'Todos os clientes já possuem coordenadas', geocodificados: 0 });
+    }
+
+    const resultados = {
+      geocodificados: 0,
+      erros: [] as string[],
+      total: clientesSemCoord.length
+    };
+
+    for (const cliente of clientesSemCoord) {
+      try {
+        if (!cliente.endereco) continue;
+
+        const coords = await googleMapsService.geocodificar(cliente.endereco);
+
+        await prisma.cliente.update({
+          where: { id: cliente.id },
+          data: {
+            latitude: coords.latitude,
+            longitude: coords.longitude
+          }
+        });
+
+        resultados.geocodificados++;
+
+        // Delay entre chamadas para evitar rate limit do Google
+        await new Promise(r => setTimeout(r, 200));
+
+      } catch (err: any) {
+        resultados.erros.push(`${cliente.nome_fantasia}: ${err.message}`);
+      }
+    }
+
+    res.json(resultados);
+  } catch (error) {
+    console.error('Erro ao geocodificar clientes:', error);
+    res.status(500).json({ error: 'Erro ao geocodificar clientes' });
   }
 });
 

@@ -34,8 +34,18 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    // Gerar token
-    const token = generateToken(usuario.id, usuario.email, usuario.role);
+    // Buscar vendedor_id pelo email (se for vendedor)
+    let vendedor_id: string | null = null;
+    if (usuario.role === 'vendedor') {
+      const vendedor = await prisma.vendedor.findUnique({
+        where: { email: usuario.email },
+        select: { id: true }
+      });
+      vendedor_id = vendedor?.id || null;
+    }
+
+    // Gerar token (inclui vendedor_id)
+    const token = generateToken(usuario.id, usuario.email, usuario.role, vendedor_id || undefined);
 
     // Atualizar último login
     await prisma.usuario.update({
@@ -49,7 +59,8 @@ router.post('/login', async (req, res) => {
         id: usuario.id,
         nome: usuario.nome,
         email: usuario.email,
-        role: usuario.role
+        role: usuario.role,
+        vendedor_id
       }
     });
   } catch (error) {
@@ -127,7 +138,17 @@ router.get('/me', auth, async (req, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    res.json(usuario);
+    // Buscar vendedor_id se for vendedor
+    let vendedor_id: string | null = null;
+    if (usuario.role === 'vendedor') {
+      const vendedor = await prisma.vendedor.findUnique({
+        where: { email: usuario.email },
+        select: { id: true }
+      });
+      vendedor_id = vendedor?.id || null;
+    }
+
+    res.json({ ...usuario, vendedor_id });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar usuário' });
   }

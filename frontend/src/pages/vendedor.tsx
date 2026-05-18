@@ -23,7 +23,8 @@ export const AppVendedor: React.FC = () => {
     queryKey: ['rota', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
       try {
-        const response = await api.get('/rotas/dia/' + new Date().toISOString().split('T')[0]);
+        const vendedorParam = usuario?.vendedor_id ? `?vendedor_id=${usuario.vendedor_id}` : '';
+        const response = await api.get('/rotas/dia/' + new Date().toISOString().split('T')[0] + vendedorParam);
         return response.data;
       } catch (err: any) {
         if (err.response?.status === 404) return null;
