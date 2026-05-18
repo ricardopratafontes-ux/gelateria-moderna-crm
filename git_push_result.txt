@@ -1,1 +1,7 @@
 === GIT PUSH Mon May 18 16:09:12 HPBA 2026 ===
+warning: in the working copy of 'git_push_result.txt', LF will be replaced by CRLF the next time Git touches it
+[main 19fbe1e] feat: painel de configurações - alertas, horários, destinatários e limites dinâmicos
+ 1 file changed, 1 insertion(+), 8 deletions(-)
+To https://github.com/ricardopratafontes-ux/gelateria-moderna-crm.git
+   0bc2524..19fbe1e  main -> main
+=== DONE ===

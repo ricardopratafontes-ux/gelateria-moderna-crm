@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { COLORS, LIMITS } from '../utils/constants';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
+import { MapaRota } from '../components/MapaRota';
 
 interface Rota {
   id: string;
@@ -96,7 +97,7 @@ export const RotasPage: React.FC = () => {
                     {new Date(rota.data).toLocaleDateString('pt-BR')} |
                     {rota.clientes_sequencia?.length || 0} paradas |
                     {rota.tempo_estimado_minutos || 0}min estimados |
-                    {rota.distancia_total_km?.toFixed(1) || 0}km
+                    {Number(rota.distancia_total_km || 0).toFixed(1)}km
                   </p>
                 </div>
                 <div className="text-right">
@@ -108,6 +109,13 @@ export const RotasPage: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Mapa da rota */}
+              {rota.clientes_sequencia?.some((c: any) => c.latitude && c.longitude) && (
+                <div className="p-4 border-b bg-gray-50">
+                  <MapaRota clientes={rota.clientes_sequencia || []} altura="350px" />
+                </div>
+              )}
 
               {/* Lista de clientes na rota */}
               <div className="divide-y">

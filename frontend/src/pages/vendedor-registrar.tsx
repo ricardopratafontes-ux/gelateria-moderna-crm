@@ -4,14 +4,19 @@ import { COLORS } from '../utils/constants';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
+import { useGPS } from '../hooks/useGPS';
+import { useAuth } from '../hooks/useAuth';
+import { useFotos } from '../hooks/useFotos';
 
 export const VendedorRegistrarPage: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+  const { posicao, erro: erroGPS, obterPosicao } = useGPS();
+  const { fotos, uploading, capturarFoto, removerFoto } = useFotos(5);
   const [etapa, setEtapa] = useState<'cliente' | 'detalhes' | 'fotos'>('cliente');
   const [clienteSelecionado, setClienteSelecionado] = useState<any>(null);
   const [buscaCliente, setBuscaCliente] = useState('');
-  const [fotos, setFotos] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     tipo: 'venda',
@@ -33,8 +38,19 @@ export const VendedorRegistrarPage: React.FC = () => {
   // Registrar atividade/visita
   const registrarVisita = useMutation({
     mutationFn: async (dados: any) => {
+      // Capturar GPS
+      let lat = 0, lon = 0;
+      try {
+        const coords = await obterPosicao();
+        lat = coords.latitude;
+        lon = coords.longitude;
+      } catch (e) {
+        console.warn('GPS indisponível, registrando sem coordenadas');
+      }
+
       // Registra atividade
       const atividade = await api.post('/atividades', {
+        vendedor_id: usuario?.vendedor_id,
         cliente_id: clienteSelecionado.id,
         tipo: dados.tipo,
         resultado: dados.resultado,
@@ -42,8 +58,8 @@ export const VendedorRegistrarPage: React.FC = () => {
         fotos: fotos,
         data_hora_inicio: new Date(),
         data_hora_fim: new Date(),
-        latitude: 0,
-        longitude: 0
+        latitude: lat,
+        longitude: lon
       });
 
       // Se houve venda, registra
@@ -67,24 +83,6 @@ export const VendedorRegistrarPage: React.FC = () => {
     }
   });
 
-  const tirarFoto = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.onchange = (e: any) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event: any) => {
-          setFotos([...fotos, event.target.result]);
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
-  };
-
   const handleSubmit = () => {
     if (!clienteSelecionado) {
       alert('Selecione um cliente');
@@ -100,7 +98,13 @@ export const VendedorRegistrarPage: React.FC = () => {
   return (
     <Layout>
       <div className="p-4 space-y-4">
-        <h1 className="text-xl font-bold text-gray-900">Registrar Visita</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-xl font-bold text-gray-900">Registrar Visita</h1>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: posicao ? '#22c55e' : '#ef4444' }} />
+            <span className="text-xs text-gray-500">{posicao ? 'GPS ok' : erroGPS || 'GPS off'}</span>
+          </div>
+        </div>
 
         {/* Progress */}
         <div className="flex gap-1">
@@ -201,10 +205,11 @@ export const VendedorRegistrarPage: React.FC = () => {
             <p className="text-sm text-gray-600 font-medium">3. Fotos de comprovação (opcional)</p>
 
             <button
-              onClick={tirarFoto}
-              className="w-full py-3 border-2 border-dashed rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
+              onClick={capturarFoto}
+              disabled={uploading}
+              className="w-full py-3 border-2 border-dashed rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
             >
-              📷 Tirar Foto / Selecionar Imagem
+              {uploading ? 'Processando...' : `📷 Tirar Foto / Selecionar Imagem (${fotos.length}/5)`}
             </button>
 
             {fotos.length > 0 && (
@@ -213,7 +218,7 @@ export const VendedorRegistrarPage: React.FC = () => {
                   <div key={idx} className="relative">
                     <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-24 object-cover rounded-lg" />
                     <button
-                      onClick={() => setFotos(fotos.filter((_, i) => i !== idx))}
+                      onClick={() => removerFoto(idx)}
                       className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center"
                     >
                       &times;
