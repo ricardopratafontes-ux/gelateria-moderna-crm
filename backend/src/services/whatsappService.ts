@@ -4,6 +4,26 @@ import axios from 'axios';
 // Docs: https://textmebot.com/send-text-messages/
 // Delay mínimo recomendado: 5 segundos entre mensagens
 
+// Normaliza telefone BR para formato TextMeBot: +55DD8DIGITOS (sem 9 extra)
+// Aceita: 5579991052599, +5579991052599, 79991052599, +557991052599
+// Retorna: +557991052599
+function normalizarTelefone(telefone: string): string {
+  let digits = telefone.replace(/\D/g, ''); // só dígitos
+
+  // Remover 55 do início se presente
+  if (digits.startsWith('55') && digits.length >= 12) {
+    digits = digits.substring(2); // fica DD + número
+  }
+
+  // Agora temos DD + número (ex: 79991052599 ou 7991052599)
+  // Se DD(2) + 9 dígitos = 11 chars, remover o 9 extra (terceiro dígito)
+  if (digits.length === 11 && digits[2] === '9') {
+    digits = digits.substring(0, 2) + digits.substring(3); // remove o 9 extra
+  }
+
+  return '+55' + digits;
+}
+
 export const whatsappService = {
   // ENVIAR MENSAGEM WHATSAPP
   async enviarMensagem(telefone: string, mensagem: string) {
@@ -14,12 +34,7 @@ export const whatsappService = {
         return { success: false, error: 'API key não configurada' };
       }
 
-      // TextMeBot exige formato +55DDNUMERO (sem o 9 extra do celular)
-      // Exemplo correto: +557991052599 (não +5579991052599)
-      let phoneClean = telefone.replace(/[^+\d]/g, ''); // mantém + e dígitos
-      if (!phoneClean.startsWith('+')) {
-        phoneClean = '+' + phoneClean;
-      }
+      const phoneClean = normalizarTelefone(telefone);
       const response = await axios.get('https://api.textmebot.com/send.php', {
         params: {
           recipient: phoneClean,
