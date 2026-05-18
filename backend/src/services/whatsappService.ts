@@ -2,7 +2,15 @@ import axios from 'axios';
 
 // TextMeBot usa GET com query params (não POST com JSON)
 // Docs: https://textmebot.com/send-text-messages/
-// Delay mínimo recomendado: 5 segundos entre mensagens
+// Rate limit: 1 mensagem a cada 5 segundos (403 se violar)
+
+// Controle de rate limit - garante intervalo mínimo entre envios
+let ultimoEnvio = 0;
+const INTERVALO_MINIMO_MS = 6000; // 6 segundos entre mensagens (margem de segurança)
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Normaliza telefone BR para formato TextMeBot: +55DD8DIGITOS (sem 9 extra)
 // Aceita: 5579991052599, +5579991052599, 79991052599, +557991052599
@@ -25,13 +33,22 @@ function normalizarTelefone(telefone: string): string {
 }
 
 export const whatsappService = {
-  // ENVIAR MENSAGEM WHATSAPP
+  // ENVIAR MENSAGEM WHATSAPP (com rate limiting automático)
   async enviarMensagem(telefone: string, mensagem: string) {
     try {
       const apiKey = process.env.TEXTMEBOT_API_KEY;
       if (!apiKey) {
         console.error('TEXTMEBOT_API_KEY não configurada');
         return { success: false, error: 'API key não configurada' };
+      }
+
+      // Respeitar rate limit: aguardar se necessário
+      const agora = Date.now();
+      const tempoDesdeUltimo = agora - ultimoEnvio;
+      if (tempoDesdeUltimo < INTERVALO_MINIMO_MS) {
+        const espera = INTERVALO_MINIMO_MS - tempoDesdeUltimo;
+        console.log(`[WHATSAPP] Rate limit: aguardando ${espera}ms antes de enviar`);
+        await sleep(espera);
       }
 
       const phoneClean = normalizarTelefone(telefone);
@@ -45,6 +62,7 @@ export const whatsappService = {
         timeout: 30000
       });
 
+      ultimoEnvio = Date.now();
       console.log(`[WHATSAPP] Mensagem enviada para ${phoneClean}:`, response.data);
       return response.data;
     } catch (error: any) {
