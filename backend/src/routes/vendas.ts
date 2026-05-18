@@ -134,12 +134,13 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // ============================================================
-// POST /api/vendas/sync-omie - Sincronizar pedidos do OMIE
-// Busca pedidos dos nossos clientes e salva/atualiza no banco
+// POST /api/vendas/sync-omie - Sincronizar pedidos do OMIE via bulk fetch
+// Busca TODOS os pedidos dos últimos 6 meses de uma vez (paginado)
+// e faz matching local por codigo_cliente_omie — evita rate limit
 // ============================================================
 router.post('/sync-omie', auth, async (req, res) => {
   try {
-    // Buscar todos os clientes que têm omie_codigo
+    // 1) Buscar todos os clientes que têm omie_codigo
     const clientesComOmie = await prisma.cliente.findMany({
       where: {
         omie_codigo: { not: null },
@@ -153,12 +154,12 @@ router.post('/sync-omie', auth, async (req, res) => {
     }
 
     // Precisamos de pelo menos um vendedor para associar
-    let vendedorPadrao = await prisma.vendedor.findFirst({ where: { status: 'ativo' } });
+    const vendedorPadrao = await prisma.vendedor.findFirst({ where: { status: 'ativo' } });
     if (!vendedorPadrao) {
       return res.status(400).json({ error: 'Cadastre pelo menos um vendedor antes de sincronizar vendas' });
     }
 
-    // Indexar clientes por omie_codigo para match rápido
+    // 2) Indexar clientes CRM por omie_codigo para match rápido
     const clienteMap = new Map<string, { id: string; nome: string }>();
     for (const c of clientesComOmie) {
       if (c.omie_codigo) {
@@ -166,92 +167,114 @@ router.post('/sync-omie', auth, async (req, res) => {
       }
     }
 
+    // 3) Buscar TODOS os pedidos dos últimos 6 meses via bulk (paginado)
+    const agora = new Date();
+    const seisAtras = new Date(agora);
+    seisAtras.setMonth(seisAtras.getMonth() - 6);
+    const dataInicio = `${String(seisAtras.getDate()).padStart(2, '0')}/${String(seisAtras.getMonth() + 1).padStart(2, '0')}/${seisAtras.getFullYear()}`;
+    const dataFim = `${String(agora.getDate()).padStart(2, '0')}/${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
+
+    let todosPedidos: any[] = [];
+    let pagina = 1;
+    let totalPaginas = 1;
+
+    do {
+      const resultado = await omieService.buscarPedidosPeriodo(dataInicio, dataFim, pagina);
+      todosPedidos.push(...resultado.pedidos);
+      totalPaginas = resultado.total_paginas;
+      pagina++;
+      if (pagina <= totalPaginas) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } while (pagina <= totalPaginas);
+
+    // 4) Processar cada pedido e fazer matching local
     let importados = 0;
     let atualizados = 0;
+    let ignorados = 0;
     const erros: string[] = [];
 
-    // Buscar pedidos de cada cliente (com delay para rate limit)
-    for (const cliente of clientesComOmie) {
-      if (!cliente.omie_codigo) continue;
+    // Mapear etapa OMIE para nosso status
+    const statusMap: Record<string, string> = {
+      '10': 'vendas',      // Pedido
+      '20': 'separacao',   // Separar
+      '30': 'faturamento', // Faturar
+      '50': 'faturamento', // Faturado
+      '60': 'entrega',     // Entregue
+      '70': 'recebimento'  // Recebido
+    };
 
+    for (const pedido of todosPedidos) {
       try {
-        const resultado = await omieService.buscarPedidosCliente(cliente.omie_codigo);
+        const codigoPedido = String(pedido.cabecalho?.codigo_pedido || '');
+        if (!codigoPedido) continue;
 
-        for (const pedido of resultado.pedidos) {
-          const codigoPedido = String(pedido.cabecalho?.codigo_pedido || '');
-          if (!codigoPedido) continue;
+        // Identificar cliente do pedido
+        const codigoClienteOmie = String(pedido.cabecalho?.codigo_cliente || '');
+        const clienteCRM = clienteMap.get(codigoClienteOmie);
 
-          // Verificar se já existe no banco
-          const existente = await prisma.venda.findFirst({
-            where: { omie_pedido_id: codigoPedido }
-          });
-
-          const valorTotal = pedido.total_pedido?.valor_total_pedido || 0;
-          const etapa = pedido.cabecalho?.etapa || '10';
-
-          // Mapear etapa OMIE para nosso status
-          const statusMap: Record<string, string> = {
-            '10': 'vendas',      // Pedido
-            '20': 'separacao',   // Separar
-            '30': 'faturamento', // Faturar
-            '50': 'faturamento', // Faturado
-            '60': 'entrega',     // Entregue
-            '70': 'recebimento'  // Recebido
-          };
-          const statusVenda = statusMap[etapa] || 'vendas';
-
-          // Data do pedido
-          const dataPedido = pedido.cabecalho?.data_previsao
-            ? new Date(pedido.cabecalho.data_previsao.split('/').reverse().join('-'))
-            : new Date();
-
-          // Faturado?
-          const faturado = pedido.infoCadastro?.faturado === 'S';
-          const cancelado = pedido.infoCadastro?.cancelado === 'S';
-
-          if (cancelado) continue; // Pular cancelados
-
-          if (existente) {
-            // Atualizar status se mudou
-            if (existente.status !== statusVenda) {
-              await prisma.venda.update({
-                where: { id: existente.id },
-                data: {
-                  status: statusVenda,
-                  data_atualizacao: new Date(),
-                  ...(faturado && statusVenda === 'recebimento' ? { data_recebimento: new Date() } : {})
-                }
-              });
-              atualizados++;
-            }
-          } else {
-            // Criar nova venda
-            await prisma.venda.create({
-              data: {
-                cliente_id: cliente.id,
-                vendedor_id: vendedorPadrao.id,
-                omie_pedido_id: codigoPedido,
-                valor_total: valorTotal,
-                status: statusVenda,
-                data_venda: dataPedido
-              }
-            });
-            importados++;
-          }
+        if (!clienteCRM) {
+          ignorados++; // Pedido de cliente que não está no CRM
+          continue;
         }
 
-        // Rate limit: 2s entre clientes
-        await new Promise(r => setTimeout(r, 2000));
+        // Cancelado?
+        const cancelado = pedido.infoCadastro?.cancelado === 'S';
+        if (cancelado) continue;
 
+        const valorTotal = pedido.total_pedido?.valor_total_pedido || 0;
+        const etapa = pedido.cabecalho?.etapa || '10';
+        const statusVenda = statusMap[etapa] || 'vendas';
+
+        // Data do pedido
+        const dataPedido = pedido.cabecalho?.data_previsao
+          ? new Date(pedido.cabecalho.data_previsao.split('/').reverse().join('-'))
+          : new Date();
+
+        const faturado = pedido.infoCadastro?.faturado === 'S';
+
+        // Verificar se já existe no banco
+        const existente = await prisma.venda.findFirst({
+          where: { omie_pedido_id: codigoPedido }
+        });
+
+        if (existente) {
+          if (existente.status !== statusVenda) {
+            await prisma.venda.update({
+              where: { id: existente.id },
+              data: {
+                status: statusVenda,
+                data_atualizacao: new Date(),
+                ...(faturado && statusVenda === 'recebimento' ? { data_recebimento: new Date() } : {})
+              }
+            });
+            atualizados++;
+          }
+        } else {
+          await prisma.venda.create({
+            data: {
+              cliente_id: clienteCRM.id,
+              vendedor_id: vendedorPadrao.id,
+              omie_pedido_id: codigoPedido,
+              valor_total: valorTotal,
+              status: statusVenda,
+              data_venda: dataPedido
+            }
+          });
+          importados++;
+        }
       } catch (err: any) {
-        erros.push(`${cliente.nome_fantasia}: ${err.message}`);
+        erros.push(`Pedido ${pedido.cabecalho?.codigo_pedido}: ${err.message}`);
       }
     }
 
     res.json({
       importados,
       atualizados,
+      ignorados,
+      total_pedidos_omie: todosPedidos.length,
       total_clientes: clientesComOmie.length,
+      periodo: `${dataInicio} a ${dataFim}`,
       erros
     });
   } catch (error) {
