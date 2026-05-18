@@ -321,4 +321,82 @@ router.post('/sync-omie', auth, async (req, res) => {
   }
 });
 
+// ============================================================
+// POST /api/vendas/:id/trocar-etapa - Trocar etapa do pedido no OMIE + atualizar local
+// Permite avançar/retroceder etapa do pedido diretamente do CRM
+// ============================================================
+router.post('/:id/trocar-etapa', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { etapa } = req.body;
+
+    if (!etapa) {
+      return res.status(400).json({ error: 'Campo "etapa" é obrigatório (10, 20, 30, 50, 60, 70)' });
+    }
+
+    // Buscar venda local
+    const venda = await prisma.venda.findUnique({ where: { id } });
+    if (!venda) {
+      return res.status(404).json({ error: 'Venda não encontrada' });
+    }
+
+    if (!venda.omie_pedido_id) {
+      return res.status(400).json({ error: 'Esta venda não está vinculada a um pedido OMIE' });
+    }
+
+    // Chamar OMIE para trocar etapa
+    const resultado = await omieService.trocarEtapaPedido(
+      parseInt(venda.omie_pedido_id),
+      String(etapa)
+    );
+
+    // Mapear etapa para status local
+    const statusMap: Record<string, string> = {
+      '10': 'vendas',
+      '20': 'separacao',
+      '30': 'faturamento',
+      '50': 'faturamento',
+      '60': 'entrega',
+      '70': 'recebimento'
+    };
+
+    const novoStatus = statusMap[String(etapa)] || venda.status;
+
+    // Atualizar venda local
+    const updateData: any = {
+      status: novoStatus,
+      data_atualizacao: new Date()
+    };
+
+    if (novoStatus === 'recebimento') {
+      updateData.data_recebimento = new Date();
+    }
+
+    const vendaAtualizada = await prisma.venda.update({
+      where: { id },
+      data: updateData,
+      include: {
+        cliente: { select: { nome_fantasia: true } },
+        vendedor: { select: { nome: true } }
+      }
+    });
+
+    console.log(`[VENDAS] Etapa pedido ${venda.omie_pedido_id} trocada para ${etapa} (${novoStatus})`);
+
+    res.json({
+      venda: vendaAtualizada,
+      omie_resultado: resultado,
+      etapa_anterior: venda.status,
+      etapa_nova: novoStatus
+    });
+  } catch (error: any) {
+    const faultstring = error?.response?.data?.faultstring || error.message || '';
+    console.error('Erro ao trocar etapa:', faultstring);
+    res.status(500).json({
+      error: 'Erro ao trocar etapa do pedido no OMIE',
+      detalhe: faultstring
+    });
+  }
+});
+
 export default router;

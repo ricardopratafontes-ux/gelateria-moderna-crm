@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { COLORS, COMISSOES } from '../utils/constants';
 import api from '../services/api';
 import { Layout } from '../components/Layout';
@@ -21,8 +21,10 @@ interface Comissao {
 }
 
 export const ComissoesPage: React.FC = () => {
+  const queryClient = useQueryClient();
   const [filtroMes, setFiltroMes] = useState(new Date().toISOString().slice(0, 7));
   const [filtroTipo, setFiltroTipo] = useState('');
+  const [syncMsg, setSyncMsg] = useState('');
 
   // Buscar comissões
   const { data: comissoes = [], isLoading } = useQuery({
@@ -33,6 +35,23 @@ export const ComissoesPage: React.FC = () => {
       if (filtroTipo) params.append('tipo', filtroTipo);
       const response = await api.get(`/comissoes?${params.toString()}`);
       return Array.isArray(response.data) ? response.data : [];
+    }
+  });
+
+  // Sync recebimentos do OMIE
+  const syncRecebimentos = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/comissoes/sync-recebimentos');
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['comissoes'] });
+      setSyncMsg(`Sync: ${data.comissoes_geradas} comissões geradas, ${data.vendas_atualizadas} vendas atualizadas (${data.total_contas_recebidas} títulos)${data.erros?.length ? ` | ${data.erros.length} erros` : ''}`);
+      setTimeout(() => setSyncMsg(''), 8000);
+    },
+    onError: () => {
+      setSyncMsg('Erro ao sincronizar recebimentos com OMIE');
+      setTimeout(() => setSyncMsg(''), 5000);
     }
   });
 
@@ -75,10 +94,26 @@ export const ComissoesPage: React.FC = () => {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Comissões</h1>
-          <p className="text-sm text-gray-600 mt-1">Acompanhamento de comissões dos vendedores</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Comissões</h1>
+            <p className="text-sm text-gray-600 mt-1">Acompanhamento de comissões dos vendedores</p>
+          </div>
+          <button
+            onClick={() => syncRecebimentos.mutate()}
+            disabled={syncRecebimentos.isPending}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-50"
+          >
+            {syncRecebimentos.isPending ? 'Sincronizando...' : '🔄 Sync Recebimentos OMIE'}
+          </button>
         </div>
+
+        {/* Sync Message */}
+        {syncMsg && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm">
+            {syncMsg}
+          </div>
+        )}
 
         {/* Resumo geral */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

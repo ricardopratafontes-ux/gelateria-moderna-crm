@@ -19,6 +19,7 @@ interface Venda {
   forma_pagamento?: string;
   parcelas?: number;
   observacoes?: string;
+  omie_pedido_id?: string | null;
   itens?: any[];
   created_at?: string;
 }
@@ -89,9 +90,29 @@ export const VendasPage: React.FC = () => {
     }
   });
 
-  // Atualizar status
+  // Atualizar status (local + OMIE se tiver pedido vinculado)
   const atualizarStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, omie_pedido_id }: { id: string; status: string; omie_pedido_id?: string | null }) => {
+      // Mapear status local para etapa OMIE
+      const etapaMap: Record<string, string> = {
+        'vendas': '10',
+        'separacao': '20',
+        'faturamento': '30',
+        'entrega': '60',
+        'recebimento': '70'
+      };
+
+      // Se tem pedido OMIE vinculado e a etapa existe, tentar trocar no OMIE também
+      if (omie_pedido_id && etapaMap[status]) {
+        try {
+          await api.post(`/vendas/${id}/trocar-etapa`, { etapa: etapaMap[status] });
+          return; // Sucesso via OMIE (já atualiza local)
+        } catch (err) {
+          console.warn('Falha ao trocar etapa no OMIE, atualizando apenas local');
+        }
+      }
+
+      // Fallback: atualizar apenas local
       const response = await api.put(`/vendas/${id}`, { status });
       return response.data;
     },
@@ -288,7 +309,7 @@ export const VendasPage: React.FC = () => {
                             value=""
                             onChange={(e) => {
                               if (e.target.value) {
-                                atualizarStatus.mutate({ id: venda.id, status: e.target.value });
+                                atualizarStatus.mutate({ id: venda.id, status: e.target.value, omie_pedido_id: venda.omie_pedido_id });
                               }
                             }}
                             className="text-xs border rounded px-2 py-1"

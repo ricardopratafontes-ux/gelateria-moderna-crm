@@ -16,6 +16,7 @@ import comissoesRoutes from './routes/comissoes';
 import leadsRoutes from './routes/leads';
 import dashboardRoutes from './routes/dashboard';
 import vendasRoutes from './routes/vendas';
+import webhookRoutes from './routes/webhooks';
 
 // Importar jobs
 import { iniciarPlanejamentoRotaDiaria } from './jobs/planejamentoRotaDiaria';
@@ -38,7 +39,10 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Rotas da API
+// Webhooks OMIE (SEM auth - OMIE envia POST diretamente)
+app.use('/api/webhooks', webhookRoutes);
+
+// Rotas da API (com auth)
 app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/vendedores', vendedoresRoutes);
@@ -73,6 +77,7 @@ app.get('/', (_req, res) => {
       '/api/comissoes',
       '/api/leads',
       '/api/vendas',
+      '/api/webhooks/omie',
       '/api/auth',
       '/health'
     ]

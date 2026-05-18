@@ -290,6 +290,38 @@ export const omieService = {
   },
 
   // ============================================================
+  // BUSCAR CONTAS A RECEBER EM BULK - Período (evita chamadas individuais por cliente)
+  // Retorna todas as contas a receber no período, filtrável por status
+  // ============================================================
+  async buscarContasReceberPeriodo(dataInicio: string, dataFim: string, statusFiltro?: string, pagina = 1) {
+    try {
+      const filtro: any = {
+        pagina,
+        registros_por_pagina: 50,
+        filtrar_por_registro_de: dataInicio,
+        filtrar_por_registro_ate: dataFim
+      };
+      if (statusFiltro) {
+        filtro.filtrar_por_status = statusFiltro;
+      }
+
+      const data = await chamarOmie('/financas/contareceber/', 'ListarContasReceber', [filtro]);
+      return {
+        contas: data?.conta_receber_cadastro || [],
+        total_paginas: data?.total_de_paginas || 1,
+        total_registros: data?.total_de_registros || 0
+      };
+    } catch (error: any) {
+      const faultstring = error?.response?.data?.faultstring || '';
+      if (faultstring.includes('não localizado') || faultstring.includes('Nenhum registro')) {
+        return { contas: [], total_paginas: 1, total_registros: 0 };
+      }
+      console.error('Erro ao buscar contas a receber período:', error?.response?.data || error.message);
+      return { contas: [], total_paginas: 1, total_registros: 0 };
+    }
+  },
+
+  // ============================================================
   // TROCAR ETAPA DE UM PEDIDO
   // Permite mudar etapa do pedido a partir do nosso app
   // ============================================================
