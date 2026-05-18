@@ -6,67 +6,83 @@ import { whatsappService } from '../services/whatsappService';
 
 const prisma = new PrismaClient();
 
-// Status do pipeline OMIE
+// Status do pipeline OMIE (ordem de progressão)
 const STATUS_PIPELINE = ['vendas', 'separacao', 'faturamento', 'entrega', 'recebimento'];
 
 export function iniciarSincronizacaoOMIE() {
   // Executa a cada 30 minutos
   cron.schedule('*/30 * * * *', async () => {
-    console.log('[JOB] Sincronização OMIE iniciada');
+    console.log('[OMIE SYNC] Sincronização seletiva iniciada');
     try {
-      await sincronizarVendas();
-      await sincronizarClientes();
+      await sincronizarStatusVendas();
+      await sincronizarDadosCadastrais();
+      console.log('[OMIE SYNC] Concluído com sucesso');
     } catch (error) {
-      console.error('[JOB] Erro na sincronização OMIE:', error);
+      console.error('[OMIE SYNC] Erro geral:', error);
     }
   });
 }
 
-async function sincronizarVendas() {
-  // Buscar vendas ativas (não finalizadas)
+// ============================================================
+// SYNC 1: STATUS DE VENDAS/PEDIDOS
+// Busca apenas vendas ativas dos nossos clientes que têm omie_pedido_id
+// Atualiza: separação → faturamento → entrega → recebimento
+// Quando recebe: dispara cálculo de comissão
+// ============================================================
+async function sincronizarStatusVendas() {
   const vendasAtivas = await prisma.venda.findMany({
     where: {
-      status: {
-        notIn: ['recebimento', 'cancelada']
-      }
+      status: { notIn: ['recebimento', 'cancelada'] },
+      omie_pedido_id: { not: null }
+    },
+    include: {
+      cliente: { select: { nome_fantasia: true, omie_codigo: true } }
     }
   });
 
+  if (vendasAtivas.length === 0) {
+    console.log('[OMIE SYNC] Nenhuma venda ativa para sincronizar');
+    return;
+  }
+
   let atualizadas = 0;
   let comissoesCalculadas = 0;
+  let erros = 0;
 
   for (const venda of vendasAtivas) {
     try {
       if (!venda.omie_pedido_id) continue;
 
       // Buscar status atualizado no OMIE
-      const statusOmie = await omieService.buscarStatusVenda(venda.omie_pedido_id);
+      const statusOmie = await omieService.buscarEtapaPedido(parseInt(venda.omie_pedido_id));
 
       if (!statusOmie) continue;
 
       const novoStatus = mapearStatusOmie(statusOmie);
 
-      // Se status mudou, atualizar
-      if (novoStatus && novoStatus !== venda.status) {
+      // Se status mudou e progrediu (não regrediu)
+      if (novoStatus && novoStatus !== venda.status && isProgressao(venda.status, novoStatus)) {
         const dadosAtualizacao: any = {
           status: novoStatus,
           data_atualizacao: new Date()
         };
 
-        // Se chegou em "recebimento", registrar valor e data
+        // Se chegou em "recebimento", registrar valor e data + comissão
         if (novoStatus === 'recebimento') {
           dadosAtualizacao.data_recebimento = new Date();
-          dadosAtualizacao.valor_recebido = statusOmie.valor_recebido || venda.valor_total;
+          dadosAtualizacao.valor_recebido = statusOmie.nValorPedido || Number(venda.valor_total);
 
-          // Calcular comissão ao receber
+          // Calcular comissão ao receber pagamento
           try {
             await comissaoService.contabilizarComissao({
               ...venda,
-              ...dadosAtualizacao
+              ...dadosAtualizacao,
+              valor_total: Number(venda.valor_total),
+              valor_recebido: dadosAtualizacao.valor_recebido
             });
             comissoesCalculadas++;
           } catch (err) {
-            console.error(`[JOB] Erro ao calcular comissão venda ${venda.id}:`, err);
+            console.error(`[OMIE SYNC] Erro comissão venda ${venda.id}:`, err);
           }
         }
 
@@ -77,74 +93,146 @@ async function sincronizarVendas() {
 
         atualizadas++;
 
-        // Notificar mudança de status relevante
+        // Notificar mudanças importantes
         if (novoStatus === 'entrega' || novoStatus === 'recebimento') {
           await notificarMudancaStatus(venda, novoStatus);
         }
       }
+
+      // Rate limit OMIE: esperar entre chamadas
+      await new Promise(r => setTimeout(r, 500));
+
     } catch (error) {
-      console.error(`[JOB] Erro ao sincronizar venda ${venda.id}:`, error);
+      erros++;
+      console.error(`[OMIE SYNC] Erro venda ${venda.id}:`, error);
     }
   }
 
-  console.log(`[JOB] Sincronização OMIE: ${atualizadas} vendas atualizadas, ${comissoesCalculadas} comissões calculadas`);
+  console.log(`[OMIE SYNC] Vendas: ${atualizadas} atualizadas, ${comissoesCalculadas} comissões, ${erros} erros`);
 }
 
-async function sincronizarClientes() {
-  try {
-    const clientesOmie = await omieService.buscarClientes();
+// ============================================================
+// SYNC 2: DADOS CADASTRAIS (apenas dos nossos 52 clientes com omie_codigo)
+// Atualiza: telefone, email, endereço se mudou no OMIE
+// Roda com menor frequência (1x ao dia seria suficiente, mas está no cron de 30min)
+// ============================================================
+async function sincronizarDadosCadastrais() {
+  // Buscar apenas clientes que TÊM código OMIE cadastrado
+  const clientesComOmie = await prisma.cliente.findMany({
+    where: {
+      omie_codigo: { not: null },
+      status: 'ativo'
+    }
+  });
 
-    for (const clienteOmie of clientesOmie) {
-      // Verificar se cliente já existe no CRM
-      const clienteExistente = await prisma.cliente.findFirst({
-        where: {
-          OR: [
-            { omie_codigo: String(clienteOmie.codigo_cliente_omie) },
-            { cnpj: clienteOmie.cnpj_cpf }
-          ]
-        }
-      });
+  if (clientesComOmie.length === 0) {
+    console.log('[OMIE SYNC] Nenhum cliente com código OMIE para sincronizar');
+    return;
+  }
 
-      if (clienteExistente) {
-        // Atualizar dados básicos se necessário
-        await prisma.cliente.update({
-          where: { id: clienteExistente.id },
-          data: {
-            omie_codigo: String(clienteOmie.codigo_cliente_omie),
-            telefone: clienteOmie.telefone1_numero || clienteExistente.telefone
-          }
-        });
+  let atualizados = 0;
+
+  // Sincronizar no máximo 10 por ciclo (para não sobrecarregar API)
+  // Em 30min sincroniza todos os 52 (5 ciclos)
+  const lote = clientesComOmie.slice(0, 10);
+
+  for (const cliente of lote) {
+    try {
+      if (!cliente.omie_codigo) continue;
+
+      const dadosOmie = await omieService.buscarClientePorCodigo(cliente.omie_codigo);
+
+      if (!dadosOmie) continue;
+
+      // Atualizar apenas se dados mudaram
+      const updates: any = {};
+
+      if (dadosOmie.telefone1_numero && dadosOmie.telefone1_numero !== cliente.telefone) {
+        updates.telefone = dadosOmie.telefone1_numero;
       }
+      if (dadosOmie.email && dadosOmie.email !== cliente.email) {
+        updates.email = dadosOmie.email;
+      }
+      if (dadosOmie.endereco && dadosOmie.endereco !== cliente.endereco) {
+        updates.endereco = `${dadosOmie.endereco}, ${dadosOmie.endereco_numero || ''} - ${dadosOmie.bairro || ''}, ${dadosOmie.cidade || ''}`;
+      }
+      if (dadosOmie.cnpj_cpf && !cliente.cnpj) {
+        updates.cnpj = dadosOmie.cnpj_cpf;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await prisma.cliente.update({
+          where: { id: cliente.id },
+          data: updates
+        });
+        atualizados++;
+      }
+
+      // Rate limit
+      await new Promise(r => setTimeout(r, 500));
+
+    } catch (error) {
+      console.error(`[OMIE SYNC] Erro cliente ${cliente.nome_fantasia}:`, error);
     }
-  } catch (error) {
-    console.error('[JOB] Erro ao sincronizar clientes OMIE:', error);
+  }
+
+  if (atualizados > 0) {
+    console.log(`[OMIE SYNC] Clientes: ${atualizados} atualizados`);
   }
 }
+
+// ============================================================
+// HELPERS
+// ============================================================
 
 function mapearStatusOmie(statusOmie: any): string | null {
-  // Mapear status do OMIE para status interno
-  const etapa = statusOmie?.etapa || statusOmie?.cStatusPedido || '';
+  // O OMIE retorna diferentes campos dependendo da chamada
+  const etapa = statusOmie?.cEtapa || statusOmie?.etapa || statusOmie?.cStatusPedido || '';
+  const descricao = (statusOmie?.cDescrEtapa || statusOmie?.cDescricaoStatus || '').toLowerCase();
 
-  if (etapa.includes('faturado') || etapa.includes('faturamento')) return 'faturamento';
-  if (etapa.includes('separacao') || etapa.includes('separação')) return 'separacao';
-  if (etapa.includes('entrega') || etapa.includes('enviado')) return 'entrega';
-  if (etapa.includes('recebido') || etapa.includes('concluido') || etapa.includes('concluído')) return 'recebimento';
-  if (etapa.includes('cancelado')) return 'cancelada';
+  // Tentar mapear pela etapa numérica do OMIE
+  if (statusOmie?.cCodEtapa) {
+    const codEtapa = statusOmie.cCodEtapa;
+    if (codEtapa === '10') return 'vendas';
+    if (codEtapa === '20') return 'separacao';
+    if (codEtapa === '30') return 'faturamento';
+    if (codEtapa === '40') return 'entrega';
+    if (codEtapa === '50') return 'recebimento';
+    if (codEtapa === '99') return 'cancelada';
+  }
+
+  // Fallback: mapear por texto
+  const texto = `${etapa} ${descricao}`.toLowerCase();
+
+  if (texto.includes('cancelad')) return 'cancelada';
+  if (texto.includes('recebid') || texto.includes('conclu') || texto.includes('pago') || texto.includes('liquidado')) return 'recebimento';
+  if (texto.includes('entreg') || texto.includes('enviad') || texto.includes('expedido')) return 'entrega';
+  if (texto.includes('fatur')) return 'faturamento';
+  if (texto.includes('separ')) return 'separacao';
 
   return null;
+}
+
+// Verifica se o novo status é uma progressão válida (não permite regredir)
+function isProgressao(statusAtual: string, novoStatus: string): boolean {
+  const idxAtual = STATUS_PIPELINE.indexOf(statusAtual);
+  const idxNovo = STATUS_PIPELINE.indexOf(novoStatus);
+
+  // Se não encontrar no pipeline, permite (pode ser 'cancelada')
+  if (idxAtual === -1 || idxNovo === -1) return true;
+
+  return idxNovo > idxAtual;
 }
 
 async function notificarMudancaStatus(venda: any, novoStatus: string) {
   const whatsappGerente = process.env.WHATSAPP_GERENTE;
   if (!whatsappGerente) return;
 
-  const cliente = await prisma.cliente.findUnique({
-    where: { id: venda.cliente_id }
-  });
+  const nomeCliente = venda.cliente?.nome_fantasia || 'Cliente';
 
   const mensagens: Record<string, string> = {
-    entrega: `📦 Pedido em entrega!\nCliente: ${cliente?.nome_fantasia}\nValor: R$ ${venda.valor_total}`,
-    recebimento: `✅ Pagamento recebido!\nCliente: ${cliente?.nome_fantasia}\nValor: R$ ${venda.valor_recebido || venda.valor_total}`
+    entrega: `Pedido em entrega!\nCliente: ${nomeCliente}\nValor: R$ ${Number(venda.valor_total).toFixed(2)}`,
+    recebimento: `Pagamento recebido!\nCliente: ${nomeCliente}\nValor: R$ ${Number(venda.valor_recebido || venda.valor_total).toFixed(2)}`
   };
 
   if (mensagens[novoStatus]) {

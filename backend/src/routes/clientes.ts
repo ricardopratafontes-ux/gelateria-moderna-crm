@@ -1,14 +1,17 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { auth } from '../middleware/auth';
+import { omieService } from '../services/omieService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // GET /api/clientes - Listar todos os clientes
+// Retorna array direto (frontend espera isso)
+// Use ?page=X&limit=Y para paginação (retorna { data, pagination })
 router.get('/', auth, async (req, res) => {
   try {
-    const { segmento, status, page = 1, limit = 20 } = req.query;
+    const { segmento, status, page, limit = 100 } = req.query;
 
     const where: any = {};
     if (segmento) where.segmento = segmento;
@@ -16,22 +19,27 @@ router.get('/', auth, async (req, res) => {
 
     const clientes = await prisma.cliente.findMany({
       where,
-      skip: (Number(page) - 1) * Number(limit),
+      skip: page ? (Number(page) - 1) * Number(limit) : 0,
       take: Number(limit),
-      orderBy: { created_at: 'desc' }
+      orderBy: { nome_fantasia: 'asc' }
     });
 
-    const total = await prisma.cliente.count({ where });
+    // Se paginação explícita, retorna objeto com metadata
+    if (page) {
+      const total = await prisma.cliente.count({ where });
+      return res.json({
+        data: clientes,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
+      });
+    }
 
-    res.json({
-      data: clientes,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total,
-        pages: Math.ceil(total / Number(limit))
-      }
-    });
+    // Sem paginação, retorna array direto (compatibilidade frontend)
+    res.json(clientes);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao listar clientes' });
   }
@@ -152,6 +160,165 @@ router.delete('/:id', auth, async (req, res) => {
     res.json({ message: 'Cliente deletado com sucesso' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao deletar cliente' });
+  }
+});
+
+// ============================================================
+// POST /api/clientes/importar - Importar clientes em lote (da planilha)
+// ============================================================
+router.post('/importar', auth, async (req, res) => {
+  try {
+    const { clientes } = req.body;
+
+    if (!Array.isArray(clientes) || clientes.length === 0) {
+      return res.status(400).json({ error: 'Envie um array de clientes' });
+    }
+
+    const resultados = { criados: 0, atualizados: 0, erros: [] as string[] };
+
+    for (const c of clientes) {
+      try {
+        // Verificar se já existe pelo nome
+        const existente = await prisma.cliente.findFirst({
+          where: {
+            nome_fantasia: { equals: c.nome_fantasia, mode: 'insensitive' }
+          }
+        });
+
+        if (existente) {
+          // Atualizar dados
+          await prisma.cliente.update({
+            where: { id: existente.id },
+            data: {
+              segmento: c.segmento || existente.segmento,
+              media_mensal_historica: c.media_mensal || existente.media_mensal_historica,
+              total_vendas_historico: c.total_vendas || existente.total_vendas_historico,
+              omie_codigo: c.omie_codigo || existente.omie_codigo,
+              observacoes: c.observacoes || existente.observacoes
+            }
+          });
+          resultados.atualizados++;
+        } else {
+          // Criar novo
+          await prisma.cliente.create({
+            data: {
+              nome_fantasia: c.nome_fantasia,
+              segmento: c.segmento,
+              media_mensal_historica: c.media_mensal || null,
+              total_vendas_historico: c.total_vendas || null,
+              omie_codigo: c.omie_codigo || null,
+              origem: 'planilha',
+              status: 'ativo',
+              observacoes: c.observacoes || null
+            }
+          });
+          resultados.criados++;
+        }
+      } catch (err: any) {
+        resultados.erros.push(`${c.nome_fantasia}: ${err.message}`);
+      }
+    }
+
+    res.json(resultados);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao importar clientes' });
+  }
+});
+
+// ============================================================
+// POST /api/clientes/mapear-omie - Buscar códigos OMIE por nome para todos os clientes
+// Busca cada cliente no OMIE pela API e salva o código encontrado
+// ============================================================
+router.post('/mapear-omie', auth, async (req, res) => {
+  try {
+    // Buscar clientes que NÃO têm código OMIE ainda
+    const clientesSemOmie = await prisma.cliente.findMany({
+      where: {
+        OR: [
+          { omie_codigo: null },
+          { omie_codigo: '' }
+        ],
+        status: 'ativo'
+      }
+    });
+
+    if (clientesSemOmie.length === 0) {
+      return res.json({ message: 'Todos os clientes já têm código OMIE', mapeados: 0 });
+    }
+
+    const resultados = {
+      mapeados: 0,
+      nao_encontrados: [] as string[],
+      multiplos: [] as { nome: string, opcoes: any[] }[],
+      erros: [] as string[]
+    };
+
+    for (const cliente of clientesSemOmie) {
+      try {
+        // Buscar no OMIE pelo nome fantasia
+        const resultadosOmie = await omieService.buscarClientePorNome(cliente.nome_fantasia);
+
+        if (resultadosOmie.length === 0) {
+          resultados.nao_encontrados.push(cliente.nome_fantasia);
+        } else if (resultadosOmie.length === 1) {
+          // Match único - salvar código
+          await prisma.cliente.update({
+            where: { id: cliente.id },
+            data: {
+              omie_codigo: String(resultadosOmie[0].codigo_cliente_omie),
+              cnpj: resultadosOmie[0].cnpj_cpf || cliente.cnpj,
+              telefone: resultadosOmie[0].telefone1_numero || cliente.telefone,
+              email: resultadosOmie[0].email || cliente.email
+            }
+          });
+          resultados.mapeados++;
+        } else {
+          // Múltiplos resultados - precisa resolver manualmente
+          resultados.multiplos.push({
+            nome: cliente.nome_fantasia,
+            opcoes: resultadosOmie.map(r => ({
+              codigo_omie: r.codigo_cliente_omie,
+              nome_fantasia: r.nome_fantasia,
+              razao_social: r.razao_social,
+              cnpj: r.cnpj_cpf
+            }))
+          });
+        }
+
+        // Rate limit OMIE
+        await new Promise(r => setTimeout(r, 1000));
+
+      } catch (err: any) {
+        resultados.erros.push(`${cliente.nome_fantasia}: ${err.message}`);
+      }
+    }
+
+    res.json(resultados);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao mapear clientes OMIE' });
+  }
+});
+
+// ============================================================
+// PUT /api/clientes/:id/omie-codigo - Definir código OMIE manualmente
+// ============================================================
+router.put('/:id/omie-codigo', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { omie_codigo } = req.body;
+
+    if (!omie_codigo) {
+      return res.status(400).json({ error: 'omie_codigo é obrigatório' });
+    }
+
+    const cliente = await prisma.cliente.update({
+      where: { id },
+      data: { omie_codigo: String(omie_codigo) }
+    });
+
+    res.json(cliente);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao definir código OMIE' });
   }
 });
 
