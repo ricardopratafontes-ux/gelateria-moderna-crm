@@ -255,10 +255,9 @@ router.post('/sync-omie', auth, async (req, res) => {
 
     for (const v of todosVendedores) {
       try {
+        // Campos OMIE vendedores: codigo, codInt, nome, inativo, email, comissao
         const nome = v.nome || '';
         const email = v.email || '';
-        const telefone = [v.fax_ddd, v.fax_numero].filter(Boolean).join('').replace(/\D/g, '') ||
-                         [v.telefone_ddd, v.telefone_numero].filter(Boolean).join('').replace(/\D/g, '');
         const inativo = v.inativo === 'S';
 
         if (!nome) continue;
@@ -279,7 +278,6 @@ router.post('/sync-omie', auth, async (req, res) => {
             data: {
               nome,
               ...(email && { email }),
-              ...(telefone && { whatsapp: telefone }),
               status: inativo ? 'inativo' : 'ativo'
             }
           });
@@ -290,7 +288,7 @@ router.post('/sync-omie', auth, async (req, res) => {
             data: {
               nome,
               email: email || `vendedor_${Date.now()}@gelateria.com`,
-              whatsapp: telefone || '',
+              whatsapp: '',
               regiao: 'Aracaju',
               status: inativo ? 'inativo' : 'ativo',
               meta_visitas_dia: 10,
