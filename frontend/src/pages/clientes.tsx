@@ -621,3 +621,29 @@ export const ClientesPage: React.FC = () => {
 };
 
 export default ClientesPage;
+                          <button
+                            onClick={() => {
+                              if (confirm('Tem certeza que deseja excluir este cliente?')) {
+                                deletarCliente.mutate(cliente.id);
+                              }
+                            }}
+                            className="text-xs font-medium text-red-500 hover:bg-red-50 px-2 py-1 rounded"
+                            title="Excluir"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+export default ClientesPage;

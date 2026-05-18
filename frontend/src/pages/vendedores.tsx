@@ -246,3 +246,4 @@ export const VendedoresPage: React.FC = () => {
 };
 
 export default VendedoresPage;
+

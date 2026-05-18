@@ -334,3 +334,4 @@ export const VendasPage: React.FC = () => {
 };
 
 export default VendasPage;
+

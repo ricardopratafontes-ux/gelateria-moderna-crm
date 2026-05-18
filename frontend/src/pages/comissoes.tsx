@@ -247,3 +247,4 @@ export const ComissoesPage: React.FC = () => {
 };
 
 export default ComissoesPage;
+

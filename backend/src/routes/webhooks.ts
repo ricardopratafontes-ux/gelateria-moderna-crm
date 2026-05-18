@@ -239,7 +239,7 @@ async function processarCliente(evento: string, payload: any) {
     }
 
     // Atualizar dados básicos se vieram no payload
-    const updates: any = { data_atualizacao: new Date() };
+    const updates: any = {};
 
     const nomeFantasia = payload?.event?.nome_fantasia || payload?.nome_fantasia;
     const email = payload?.event?.email || payload?.email;
