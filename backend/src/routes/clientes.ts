@@ -598,4 +598,92 @@ router.post('/sync-omie', auth, async (req, res) => {
   }
 });
 
+// ============================================================
+// POST /api/clientes/recalcular-medias - Recalcular média mensal de TODOS os clientes
+// Usa vendas reais do banco (importadas do OMIE) para calcular a média dinâmica
+// Fórmula: soma total de vendas / número de meses distintos com compras
+// ============================================================
+router.post('/recalcular-medias', auth, async (req, res) => {
+  try {
+    // Buscar todas as vendas agrupadas por cliente (exceto canceladas)
+    const vendas = await prisma.venda.findMany({
+      where: {
+        status: { not: 'cancelada' }
+      },
+      select: {
+        cliente_id: true,
+        valor_total: true,
+        data_venda: true
+      }
+    });
+
+    // Agrupar por cliente: { cliente_id: { total: number, meses: Set<string> } }
+    const agrupado = new Map<string, { total: number; meses: Set<string> }>();
+
+    for (const v of vendas) {
+      if (!v.cliente_id) continue;
+
+      let grupo = agrupado.get(v.cliente_id);
+      if (!grupo) {
+        grupo = { total: 0, meses: new Set() };
+        agrupado.set(v.cliente_id, grupo);
+      }
+
+      grupo.total += Number(v.valor_total || 0);
+
+      // Extrair mês/ano como chave única (ex: "2026-05")
+      const dataVenda = new Date(v.data_venda);
+      const mesAno = `${dataVenda.getFullYear()}-${String(dataVenda.getMonth() + 1).padStart(2, '0')}`;
+      grupo.meses.add(mesAno);
+    }
+
+    let atualizados = 0;
+    const detalhes: { nome: string; media_antiga: number; media_nova: number; meses: number }[] = [];
+
+    for (const [clienteId, dados] of agrupado) {
+      const numMeses = dados.meses.size;
+      if (numMeses === 0) continue;
+
+      const mediaMensal = dados.total / numMeses;
+
+      // Buscar cliente atual para comparar
+      const cliente = await prisma.cliente.findUnique({
+        where: { id: clienteId },
+        select: { nome_fantasia: true, media_mensal_historica: true }
+      });
+
+      if (!cliente) continue;
+
+      const mediaAntiga = Number(cliente.media_mensal_historica || 0);
+
+      // Só atualizar se mudou (com tolerância de R$ 0.01)
+      if (Math.abs(mediaMensal - mediaAntiga) > 0.01) {
+        await prisma.cliente.update({
+          where: { id: clienteId },
+          data: {
+            media_mensal_historica: mediaMensal,
+            total_vendas_historico: dados.total
+          }
+        });
+        atualizados++;
+        detalhes.push({
+          nome: cliente.nome_fantasia,
+          media_antiga: mediaAntiga,
+          media_nova: Math.round(mediaMensal * 100) / 100,
+          meses: numMeses
+        });
+      }
+    }
+
+    res.json({
+      atualizados,
+      total_clientes_com_vendas: agrupado.size,
+      detalhes
+    });
+  } catch (error) {
+    console.error('Erro ao recalcular médias:', error);
+    res.status(500).json({ error: 'Erro ao recalcular médias' });
+  }
+});
+
 export default router;

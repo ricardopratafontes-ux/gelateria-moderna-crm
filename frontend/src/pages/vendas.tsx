@@ -80,7 +80,7 @@ export const VendasPage: React.FC = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['vendas'] });
-      setSyncMsg(`OMIE: ${data.importados} importados, ${data.atualizados} atualizados (${data.total_clientes} clientes verificados)${data.erros?.length ? ` | ${data.erros.length} erros` : ''}`);
+      setSyncMsg(`OMIE: ${data.importados} importados, ${data.atualizados} atualizados${data.medias_recalculadas ? `, ${data.medias_recalculadas} médias recalculadas` : ''} (${data.total_clientes} clientes)${data.erros?.length ? ` | ${data.erros.length} erros` : ''}`);
       setTimeout(() => setSyncMsg(''), 8000);
     },
     onError: () => {

@@ -268,10 +268,48 @@ router.post('/sync-omie', auth, async (req, res) => {
       }
     }
 
+    // 5) Recalcular médias mensais de todos os clientes com vendas
+    let mediasAtualizadas = 0;
+    try {
+      const todasVendas = await prisma.venda.findMany({
+        where: { status: { not: 'cancelada' } },
+        select: { cliente_id: true, valor_total: true, data_venda: true }
+      });
+
+      const agrupado = new Map<string, { total: number; meses: Set<string> }>();
+      for (const v of todasVendas) {
+        if (!v.cliente_id) continue;
+        let grupo = agrupado.get(v.cliente_id);
+        if (!grupo) {
+          grupo = { total: 0, meses: new Set() };
+          agrupado.set(v.cliente_id, grupo);
+        }
+        grupo.total += Number(v.valor_total || 0);
+        const d = new Date(v.data_venda);
+        grupo.meses.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      for (const [clienteId, dados] of agrupado) {
+        if (dados.meses.size === 0) continue;
+        const media = dados.total / dados.meses.size;
+        await prisma.cliente.update({
+          where: { id: clienteId },
+          data: {
+            media_mensal_historica: media,
+            total_vendas_historico: dados.total
+          }
+        });
+        mediasAtualizadas++;
+      }
+    } catch (err) {
+      console.error('Erro ao recalcular médias:', err);
+    }
+
     res.json({
       importados,
       atualizados,
       ignorados,
+      medias_recalculadas: mediasAtualizadas,
       total_pedidos_omie: todosPedidos.length,
       total_clientes: clientesComOmie.length,
       periodo: `${dataInicio} a ${dataFim}`,
