@@ -172,6 +172,50 @@ export const omieService = {
   },
 
   // ============================================================
+  // BUSCAR MÚLTIPLOS CLIENTES POR CÓDIGOS OMIE (1 chamada!)
+  // Usado no sync seletivo - busca apenas os clientes do CRM
+  // Usa filtro clientesPorCodigo para evitar 52 chamadas individuais
+  // ============================================================
+  async buscarClientesPorCodigos(codigos: string[]): Promise<any[]> {
+    if (codigos.length === 0) return [];
+
+    const todosClientes: any[] = [];
+
+    // OMIE pagina resultados - precisamos iterar páginas
+    // Enviamos todos os códigos de uma vez, OMIE filtra internamente
+    const codigosFormatados = codigos.map(c => ({ codigo_cliente_omie: parseInt(c) }));
+
+    let pagina = 1;
+    let totalPaginas = 1;
+
+    do {
+      try {
+        const data = await chamarOmie('/geral/clientes/', 'ListarClientes', [
+          {
+            pagina,
+            registros_por_pagina: 50,
+            clientesPorCodigo: codigosFormatados
+          }
+        ]);
+
+        const clientes = data?.clientes_cadastro || [];
+        todosClientes.push(...clientes);
+        totalPaginas = data?.total_de_paginas || 1;
+        pagina++;
+      } catch (error: any) {
+        const faultstring = error?.response?.data?.faultstring || '';
+        // Se não encontrou nenhum registro, retorna o que já tem
+        if (faultstring.includes('não localizado') || faultstring.includes('Nenhum registro')) {
+          break;
+        }
+        throw error;
+      }
+    } while (pagina <= totalPaginas);
+
+    return todosClientes;
+  },
+
+  // ============================================================
   // LISTAR TODOS OS CLIENTES (paginado) - usado apenas para mapeamento inicial
   // NÃO usar no sync diário!
   // ============================================================

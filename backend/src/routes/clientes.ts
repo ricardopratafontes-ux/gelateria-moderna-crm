@@ -177,17 +177,23 @@ router.get('/buscar-omie/:nome', auth, async (req, res) => {
     const resultados = await omieService.buscarClientePorNome(nome);
 
     // Formatar para o frontend
-    const formatados = resultados.map((c: any) => ({
-      codigo_omie: String(c.codigo_cliente_omie),
-      nome_fantasia: c.nome_fantasia || c.razao_social,
-      razao_social: c.razao_social,
-      cnpj: c.cnpj_cpf,
-      telefone: c.telefone1_numero,
-      email: c.email,
-      endereco: c.endereco ? `${c.endereco}, ${c.endereco_numero || ''} - ${c.bairro || ''}, ${c.cidade || ''}` : null,
-      cidade: c.cidade,
-      estado: c.estado
-    }));
+    const formatados = resultados.map((c: any) => {
+      const telefoneCompleto = [c.telefone1_ddd, c.telefone1_numero]
+        .filter(Boolean)
+        .join('')
+        .replace(/\D/g, '');
+      return {
+        codigo_omie: String(c.codigo_cliente_omie),
+        nome_fantasia: c.nome_fantasia || c.razao_social,
+        razao_social: c.razao_social,
+        cnpj: c.cnpj_cpf,
+        telefone: telefoneCompleto || null,
+        email: c.email,
+        endereco: c.endereco ? `${c.endereco}, ${c.endereco_numero || ''} - ${c.bairro || ''}, ${c.cidade || ''}` : null,
+        cidade: c.cidade,
+        estado: c.estado
+      };
+    });
 
     res.json(formatados);
   } catch (error: any) {
@@ -233,6 +239,12 @@ router.post('/importar-omie', auth, async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado no OMIE' });
     }
 
+    // Concatenar DDD + número (OMIE separa os campos)
+    const telefoneCompleto = [dadosOmie.telefone1_ddd, dadosOmie.telefone1_numero]
+      .filter(Boolean)
+      .join('')
+      .replace(/\D/g, '');
+
     // Criar no banco
     const cliente = await prisma.cliente.create({
       data: {
@@ -240,9 +252,11 @@ router.post('/importar-omie', auth, async (req, res) => {
         cnpj: dadosOmie.cnpj_cpf || null,
         segmento: segmento || null,
         endereco: dadosOmie.endereco ? `${dadosOmie.endereco}, ${dadosOmie.endereco_numero || ''} - ${dadosOmie.bairro || ''}, ${dadosOmie.cidade || ''}` : null,
-        telefone: dadosOmie.telefone1_numero || null,
+        cidade: dadosOmie.cidade || null,
+        bairro: dadosOmie.bairro || null,
+        telefone: telefoneCompleto || null,
         email: dadosOmie.email || null,
-        whatsapp: dadosOmie.telefone1_numero || null,
+        whatsapp: telefoneCompleto || null,
         omie_codigo: String(codigo_omie),
         origem: 'omie',
         status: 'ativo'
@@ -354,12 +368,17 @@ router.post('/mapear-omie', auth, async (req, res) => {
           resultados.nao_encontrados.push(cliente.nome_fantasia);
         } else if (resultadosOmie.length === 1) {
           // Match único - salvar código
+          const telCompleto = [resultadosOmie[0].telefone1_ddd, resultadosOmie[0].telefone1_numero]
+            .filter(Boolean)
+            .join('')
+            .replace(/\D/g, '');
           await prisma.cliente.update({
             where: { id: cliente.id },
             data: {
               omie_codigo: String(resultadosOmie[0].codigo_cliente_omie),
               cnpj: resultadosOmie[0].cnpj_cpf || cliente.cnpj,
-              telefone: resultadosOmie[0].telefone1_numero || cliente.telefone,
+              telefone: telCompleto || cliente.telefone,
+              whatsapp: telCompleto || cliente.whatsapp,
               email: resultadosOmie[0].email || cliente.email
             }
           });
@@ -431,35 +450,67 @@ router.post('/sync-omie', auth, async (req, res) => {
       return res.json({ message: 'Nenhum cliente com código OMIE', atualizados: 0 });
     }
 
-    let atualizados = 0;
+    // Coletar todos os códigos OMIE e buscar em lote (1-2 chamadas ao invés de 52!)
+    const codigos = clientesComOmie
+      .map(c => c.omie_codigo)
+      .filter((c): c is string => c !== null && c !== '');
+
+    let dadosOmieList: any[] = [];
     const erros: string[] = [];
+
+    try {
+      dadosOmieList = await omieService.buscarClientesPorCodigos(codigos);
+    } catch (err: any) {
+      return res.status(502).json({ error: 'Erro ao buscar dados no OMIE: ' + (err?.response?.data?.faultstring || err.message) });
+    }
+
+    // Indexar por codigo_cliente_omie para match rápido
+    const omieMap = new Map<string, any>();
+    for (const d of dadosOmieList) {
+      omieMap.set(String(d.codigo_cliente_omie), d);
+    }
+
+    let atualizados = 0;
 
     for (const cliente of clientesComOmie) {
       try {
         if (!cliente.omie_codigo) continue;
 
-        const dadosOmie = await omieService.buscarClientePorCodigo(cliente.omie_codigo);
+        const dadosOmie = omieMap.get(cliente.omie_codigo);
         if (!dadosOmie) continue;
 
         const updates: any = {};
 
-        if (dadosOmie.telefone1_numero && dadosOmie.telefone1_numero !== cliente.telefone) {
-          updates.telefone = dadosOmie.telefone1_numero;
+        // Telefone: concatenar DDD + número (OMIE separa os campos)
+        const telefoneCompleto = [dadosOmie.telefone1_ddd, dadosOmie.telefone1_numero]
+          .filter(Boolean)
+          .join('')
+          .replace(/\D/g, '');
+
+        if (telefoneCompleto && telefoneCompleto !== cliente.telefone?.replace(/\D/g, '')) {
+          updates.telefone = telefoneCompleto;
         }
+
         if (dadosOmie.email && dadosOmie.email !== cliente.email) {
           updates.email = dadosOmie.email;
         }
+
         if (dadosOmie.endereco) {
           const novoEndereco = `${dadosOmie.endereco}, ${dadosOmie.endereco_numero || ''} - ${dadosOmie.bairro || ''}, ${dadosOmie.cidade || ''}`;
           if (novoEndereco !== cliente.endereco) {
             updates.endereco = novoEndereco;
+            updates.cidade = dadosOmie.cidade || cliente.cidade;
+            updates.bairro = dadosOmie.bairro || cliente.bairro;
           }
         }
+
         if (dadosOmie.cnpj_cpf && !cliente.cnpj) {
           updates.cnpj = dadosOmie.cnpj_cpf;
         }
-        if (dadosOmie.telefone1_numero && !cliente.whatsapp) {
-          updates.whatsapp = dadosOmie.telefone1_numero;
+
+        // WhatsApp: usar telefone completo com DDD
+        if (telefoneCompleto && !cliente.whatsapp) {
+          updates.whatsapp = telefoneCompleto;
         }
 
         if (Object.keys(updates).length > 0) {
@@ -470,15 +521,17 @@ router.post('/sync-omie', auth, async (req, res) => {
           atualizados++;
         }
 
-        // Rate limit OMIE: 2s entre chamadas
-        await new Promise(r => setTimeout(r, 2000));
-
       } catch (err: any) {
         erros.push(`${cliente.nome_fantasia}: ${err.message}`);
       }
     }
 
-    res.json({ atualizados, total: clientesComOmie.length, erros });
+    res.json({
+      atualizados,
+      total: clientesComOmie.length,
+      encontrados_omie: dadosOmieList.length,
+      erros
+    });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao sincronizar com OMIE' });
   }
