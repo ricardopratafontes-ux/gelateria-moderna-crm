@@ -123,8 +123,8 @@ export const VendasPage: React.FC = () => {
     }
   };
 
-  const totalVendas = (vendas as Venda[]).reduce((acc, v) => acc + (v.valor_total || 0), 0);
-  const totalRecebido = (vendas as Venda[]).reduce((acc, v) => acc + (v.valor_recebido || 0), 0);
+  const totalVendas = (vendas as Venda[]).reduce((acc, v) => acc + (Number(v.valor_total) || 0), 0);
+  const totalRecebido = (vendas as Venda[]).reduce((acc, v) => acc + (Number(v.valor_recebido) || 0), 0);
 
   return (
     <Layout>
@@ -275,7 +275,7 @@ export const VendasPage: React.FC = () => {
                     <tr key={venda.id} className="border-t hover:bg-gray-50">
                       <td className="px-4 py-3">{new Date(venda.data_venda).toLocaleDateString('pt-BR')}</td>
                       <td className="px-4 py-3 font-medium">{venda.cliente?.nome || '—'}</td>
-                      <td className="px-4 py-3 font-semibold">R$ {venda.valor_total?.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-semibold">R$ {Number(venda.valor_total || 0).toFixed(2)}</td>
                       <td className="px-4 py-3">{venda.forma_pagamento?.replace('_', ' ') || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-semibold px-2 py-1 rounded ${getStatusColor(venda.status)}`}>
