@@ -14,7 +14,12 @@ export const whatsappService = {
         return { success: false, error: 'API key não configurada' };
       }
 
-      const phoneClean = telefone.replace(/\D/g, '');
+      // TextMeBot exige formato +55DDNUMERO (sem o 9 extra do celular)
+      // Exemplo correto: +557991052599 (não +5579991052599)
+      let phoneClean = telefone.replace(/[^+\d]/g, ''); // mantém + e dígitos
+      if (!phoneClean.startsWith('+')) {
+        phoneClean = '+' + phoneClean;
+      }
       const response = await axios.get('https://api.textmebot.com/send.php', {
         params: {
           recipient: phoneClean,
