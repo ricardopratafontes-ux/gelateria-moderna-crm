@@ -557,9 +557,9 @@ export const ClientesPage: React.FC = () => {
                   )}
                 </div>
 
-                {cliente.media_mensal_customizada || cliente.media_mensal_historica ? (
+                {(cliente.media_mensal_customizada || cliente.media_mensal_historica) ? (
                   <p className="text-sm font-semibold mt-2" style={{ color: COLORS.PRIMARY }}>
-                    Média: R$ {(cliente.media_mensal_customizada || cliente.media_mensal_historica || 0).toFixed(2)}
+                    Média: R$ {Number(cliente.media_mensal_customizada || cliente.media_mensal_historica || 0).toFixed(2)}
                   </p>
                 ) : null}
 
