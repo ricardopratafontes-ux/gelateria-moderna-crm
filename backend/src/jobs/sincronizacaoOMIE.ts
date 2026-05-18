@@ -10,8 +10,8 @@ const prisma = new PrismaClient();
 const STATUS_PIPELINE = ['vendas', 'separacao', 'faturamento', 'entrega', 'recebimento'];
 
 export function iniciarSincronizacaoOMIE() {
-  // Executa a cada 30 minutos
-  cron.schedule('*/30 * * * *', async () => {
+  // Executa a cada 2 horas (para não estourar rate limit OMIE)
+  cron.schedule('0 */2 * * *', async () => {
     console.log('[OMIE SYNC] Sincronização seletiva iniciada');
     try {
       await sincronizarStatusVendas();
@@ -132,9 +132,9 @@ async function sincronizarDadosCadastrais() {
 
   let atualizados = 0;
 
-  // Sincronizar no máximo 10 por ciclo (para não sobrecarregar API)
-  // Em 30min sincroniza todos os 52 (5 ciclos)
-  const lote = clientesComOmie.slice(0, 10);
+  // Sincronizar no máximo 5 por ciclo (respeitar rate limit OMIE)
+  // Em ~20h sincroniza todos os 52 clientes (10 ciclos a cada 2h)
+  const lote = clientesComOmie.slice(0, 5);
 
   for (const cliente of lote) {
     try {
