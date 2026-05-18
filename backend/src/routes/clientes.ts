@@ -190,8 +190,14 @@ router.get('/buscar-omie/:nome', auth, async (req, res) => {
     }));
 
     res.json(formatados);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar no OMIE' });
+  } catch (error: any) {
+    const faultstring = error?.response?.data?.faultstring || '';
+    if (faultstring.includes('REDUNDANT') || faultstring.includes('redundante')) {
+      res.status(429).json({ error: 'API OMIE em rate limit. Aguarde 1 minuto e tente novamente.' });
+    } else {
+      console.error('Erro buscar OMIE:', error?.response?.data || error.message);
+      res.status(500).json({ error: 'Erro ao buscar no OMIE' });
+    }
   }
 });
 
@@ -367,8 +373,8 @@ router.post('/mapear-omie', auth, async (req, res) => {
           });
         }
 
-        // Rate limit OMIE
-        await new Promise(r => setTimeout(r, 1000));
+        // Rate limit OMIE - 2s entre chamadas
+        await new Promise(r => setTimeout(r, 2000));
 
       } catch (err: any) {
         resultados.erros.push(`${cliente.nome_fantasia}: ${err.message}`);

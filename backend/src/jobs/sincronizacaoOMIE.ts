@@ -99,8 +99,8 @@ async function sincronizarStatusVendas() {
         }
       }
 
-      // Rate limit OMIE: esperar entre chamadas
-      await new Promise(r => setTimeout(r, 500));
+      // Rate limit OMIE: esperar 2s entre chamadas para evitar REDUNDANT
+      await new Promise(r => setTimeout(r, 2000));
 
     } catch (error) {
       erros++;
@@ -168,8 +168,8 @@ async function sincronizarDadosCadastrais() {
         atualizados++;
       }
 
-      // Rate limit
-      await new Promise(r => setTimeout(r, 500));
+      // Rate limit OMIE: 2s entre chamadas
+      await new Promise(r => setTimeout(r, 2000));
 
     } catch (error) {
       console.error(`[OMIE SYNC] Erro cliente ${cliente.nome_fantasia}:`, error);

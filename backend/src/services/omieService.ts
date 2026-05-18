@@ -8,8 +8,8 @@ const OMIE_API = axios.create({
   timeout: 30000
 });
 
-// Helper para chamadas OMIE com retry
-async function chamarOmie(endpoint: string, call: string, param: any[], tentativas = 2): Promise<any> {
+// Helper para chamadas OMIE com retry inteligente (respeita rate limit)
+async function chamarOmie(endpoint: string, call: string, param: any[], tentativas = 3): Promise<any> {
   for (let i = 0; i < tentativas; i++) {
     try {
       const response = await OMIE_API.post(endpoint, {
@@ -20,9 +20,18 @@ async function chamarOmie(endpoint: string, call: string, param: any[], tentativ
       });
       return response.data;
     } catch (error: any) {
-      // OMIE tem rate limit - esperar 1s entre tentativas
-      if (i < tentativas - 1) {
-        await new Promise(r => setTimeout(r, 1000));
+      const faultstring = error?.response?.data?.faultstring || '';
+      const isRateLimit = faultstring.includes('REDUNDANT') || faultstring.includes('redundante');
+
+      if (isRateLimit && i < tentativas - 1) {
+        // Extrair tempo de espera da mensagem OMIE (ex: "Aguarde 37 segundos")
+        const match = faultstring.match(/Aguarde (\d+) segundo/);
+        const waitTime = match ? (parseInt(match[1]) + 2) * 1000 : 40000;
+        console.log(`[OMIE] Rate limit - aguardando ${waitTime/1000}s antes de retry ${i+1}/${tentativas-1}`);
+        await new Promise(r => setTimeout(r, waitTime));
+      } else if (i < tentativas - 1) {
+        // Outros erros - retry com delay menor
+        await new Promise(r => setTimeout(r, 3000));
       } else {
         throw error;
       }
@@ -68,6 +77,16 @@ export const omieService = {
       ]);
       return data?.clientes_cadastro || [];
     } catch (error: any) {
+      const faultstring = error?.response?.data?.faultstring || '';
+      // Se for rate limit, propagar o erro para a rota tratar
+      if (faultstring.includes('REDUNDANT') || faultstring.includes('redundante')) {
+        console.error(`[OMIE] Rate limit ao buscar "${nome_fantasia}": ${faultstring}`);
+        throw error;
+      }
+      // Se nao encontrou registros (erro normal da OMIE), retorna vazio
+      if (faultstring.includes('não localizado') || faultstring.includes('Nenhum registro')) {
+        return [];
+      }
       console.error(`Erro ao buscar cliente por nome "${nome_fantasia}":`, error?.response?.data || error.message);
       return [];
     }

@@ -1,0 +1,5 @@
+warning: in the working copy of 'backend/src/routes/clientes.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/clientes.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'git-push.bat', LF will be replaced by CRLF the next time Git touches it
+To https://github.com/ricardopratafontes-ux/gelateria-moderna-crm.git
+   f313c0d..c549a52  main -> main
