@@ -2,12 +2,18 @@ import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { whatsappService } from '../services/whatsappService';
 import { emailService } from '../services/emailService';
+import { configService } from '../services/configService';
 
 const prisma = new PrismaClient();
 
 export function iniciarRelatorioMensal() {
   // Executa no dia 5 de cada mês às 8h (dá margem para recebimentos atrasados)
   cron.schedule('0 8 5 * *', async () => {
+    const ativo = await configService.getBool('relatorio_mensal_ativo');
+    if (!ativo) {
+      console.log('[JOB] Relatório mensal DESATIVADO nas configurações');
+      return;
+    }
     console.log('[JOB] Relatório mensal iniciado');
     try {
       await gerarRelatorioMensal();

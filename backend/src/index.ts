@@ -17,6 +17,7 @@ import leadsRoutes from './routes/leads';
 import dashboardRoutes from './routes/dashboard';
 import vendasRoutes from './routes/vendas';
 import webhookRoutes from './routes/webhooks';
+import configuracoesRoutes from './routes/configuracoes';
 
 // Importar jobs
 import { iniciarPlanejamentoRotaDiaria } from './jobs/planejamentoRotaDiaria';
@@ -53,6 +54,7 @@ app.use('/api/comissoes', comissoesRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/vendas', vendasRoutes);
+app.use('/api/configuracoes', configuracoesRoutes);
 
 // Teste WhatsApp (temporário - remover em produção)
 // Aceita ?telefone=5579991052599 para testar com número específico
@@ -127,6 +129,7 @@ app.get('/', (_req, res) => {
       '/api/leads',
       '/api/vendas',
       '/api/webhooks/omie',
+      '/api/configuracoes',
       '/api/auth',
       '/health'
     ]

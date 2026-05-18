@@ -2,12 +2,18 @@ import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { whatsappService } from '../services/whatsappService';
 import { emailService } from '../services/emailService';
+import { configService } from '../services/configService';
 
 const prisma = new PrismaClient();
 
 export function iniciarRelatorioSemanal() {
   // Executa todo sábado às 9h
   cron.schedule('0 9 * * 6', async () => {
+    const ativo = await configService.getBool('relatorio_semanal_ativo');
+    if (!ativo) {
+      console.log('[JOB] Relatório semanal DESATIVADO nas configurações');
+      return;
+    }
     console.log('[JOB] Relatório semanal iniciado');
     try {
       await gerarRelatorioSemanal();

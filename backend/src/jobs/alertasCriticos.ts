@@ -1,20 +1,23 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { whatsappService } from '../services/whatsappService';
+import { configService } from '../services/configService';
 
 const prisma = new PrismaClient();
-
-const PRAZO_RETORNO_LEAD_H = 48;
-const DIAS_SEM_VISITA_ALERTA = 7;
-const META_VISITAS_DIA = 10;
 
 export function iniciarAlertasCriticos() {
   // Executa a cada 15 minutos
   cron.schedule('*/15 * * * *', async () => {
     try {
-      await verificarLeadsEmRisco();
-      await verificarVendedorParado();
-      await verificarMetaDiaria();
+      if (await configService.getBool('alerta_lead_risco_ativo')) {
+        await verificarLeadsEmRisco();
+      }
+      if (await configService.getBool('alerta_vendedor_parado_ativo')) {
+        await verificarVendedorParado();
+      }
+      if (await configService.getBool('alerta_meta_diaria_ativo')) {
+        await verificarMetaDiaria();
+      }
     } catch (error) {
       console.error('[ALERTA] Erro nos alertas críticos:', error);
     }
@@ -23,7 +26,9 @@ export function iniciarAlertasCriticos() {
   // Alerta meio-dia: progresso da meta
   cron.schedule('59 11 * * 1-6', async () => {
     try {
-      await alertaProgressoMeioDia();
+      if (await configService.getBool('alerta_progresso_meiodia_ativo')) {
+        await alertaProgressoMeioDia();
+      }
     } catch (error) {
       console.error('[ALERTA] Erro no alerta meio-dia:', error);
     }
@@ -32,7 +37,9 @@ export function iniciarAlertasCriticos() {
   // Alerta fim do dia: resumo
   cron.schedule('0 17 * * 1-6', async () => {
     try {
-      await alertaResumoFimDoDia();
+      if (await configService.getBool('alerta_resumo_fim_dia_ativo')) {
+        await alertaResumoFimDoDia();
+      }
     } catch (error) {
       console.error('[ALERTA] Erro no alerta fim do dia:', error);
     }
@@ -40,6 +47,8 @@ export function iniciarAlertasCriticos() {
 }
 
 async function verificarLeadsEmRisco() {
+  const prazoHoras = await configService.getNumber('prazo_retorno_lead_horas');
+
   const leads = await prisma.lead.findMany({
     where: {
       status: {
@@ -56,12 +65,12 @@ async function verificarLeadsEmRisco() {
       ? (Date.now() - lead.data_ultimo_contato.getTime()) / (1000 * 60 * 60)
       : (Date.now() - lead.data_criacao.getTime()) / (1000 * 60 * 60);
 
-    if (horasSemContato > PRAZO_RETORNO_LEAD_H) {
+    if (horasSemContato > prazoHoras) {
       try {
         await whatsappService.enviarAlerta(
           whatsappGerente,
           'Lead em risco',
-          `Lead "${lead.nome}" está há ${Math.floor(horasSemContato)}h sem contato.\nPrazo limite: ${PRAZO_RETORNO_LEAD_H}h\nOrigem: ${lead.origem || 'N/A'}`
+          `Lead "${lead.nome}" está há ${Math.floor(horasSemContato)}h sem contato.\nPrazo limite: ${prazoHoras}h\nOrigem: ${lead.origem || 'N/A'}`
         );
       } catch (err) {
         // Continua para próximo lead
@@ -71,6 +80,8 @@ async function verificarLeadsEmRisco() {
 }
 
 async function verificarVendedorParado() {
+  const tempoParadoMin = await configService.getNumber('tempo_vendedor_parado_min');
+
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
@@ -82,11 +93,9 @@ async function verificarVendedorParado() {
   if (!whatsappGerente) return;
 
   for (const vendedor of vendedores) {
-    // Verificar se está em horário comercial (8h-17h)
     const horaAtual = new Date().getHours();
     if (horaAtual < 8 || horaAtual > 17) continue;
 
-    // Verificar última atividade registrada hoje
     const ultimaAtividade = await prisma.atividade.findFirst({
       where: {
         vendedor_id: vendedor.id,
@@ -96,17 +105,14 @@ async function verificarVendedorParado() {
     });
 
     if (!ultimaAtividade && horaAtual > 9) {
-      // Vendedor não iniciou nenhuma atividade e já passa das 9h
       await whatsappService.enviarAlerta(
         whatsappGerente,
         'Vendedor sem atividade',
         `${vendedor.nome} não registrou nenhuma atividade hoje.\nHora atual: ${horaAtual}h`
       );
     } else if (ultimaAtividade) {
-      // Verificar se está parado há mais de 1h
       const minutosSemAtividade = (Date.now() - ultimaAtividade.data_hora_inicio.getTime()) / (1000 * 60);
-      if (minutosSemAtividade > 60 && ultimaAtividade.resultado) {
-        // Última atividade foi concluída há mais de 1h e não iniciou outra
+      if (minutosSemAtividade > tempoParadoMin && ultimaAtividade.resultado) {
         await whatsappService.enviarAlerta(
           whatsappGerente,
           'Vendedor parado',
@@ -118,9 +124,10 @@ async function verificarVendedorParado() {
 }
 
 async function verificarMetaDiaria() {
-  // Verificar apenas após 15h
   const horaAtual = new Date().getHours();
   if (horaAtual < 15) return;
+
+  const metaVisitasDia = await configService.getNumber('meta_visitas_dia');
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -141,17 +148,19 @@ async function verificarMetaDiaria() {
       }
     });
 
-    if (visitasHoje < META_VISITAS_DIA * 0.5) {
+    if (visitasHoje < metaVisitasDia * 0.5) {
       await whatsappService.enviarAlerta(
         whatsappGerente,
         'Meta em risco',
-        `${vendedor.nome}: apenas ${visitasHoje}/${META_VISITAS_DIA} visitas às ${horaAtual}h.\nMeta diária pode não ser atingida.`
+        `${vendedor.nome}: apenas ${visitasHoje}/${metaVisitasDia} visitas às ${horaAtual}h.\nMeta diária pode não ser atingida.`
       );
     }
   }
 }
 
 async function alertaProgressoMeioDia() {
+  const metaVisitasDia = await configService.getNumber('meta_visitas_dia');
+
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
@@ -173,14 +182,16 @@ async function alertaProgressoMeioDia() {
       }
     });
 
-    const emoji = visitasHoje >= META_VISITAS_DIA / 2 ? '✅' : '⚠️';
-    resumo += `${emoji} ${vendedor.nome}: ${visitasHoje}/${META_VISITAS_DIA}\n`;
+    const emoji = visitasHoje >= metaVisitasDia / 2 ? '✅' : '⚠️';
+    resumo += `${emoji} ${vendedor.nome}: ${visitasHoje}/${metaVisitasDia}\n`;
   }
 
   await whatsappService.enviarMensagem(whatsappGerente, resumo);
 }
 
 async function alertaResumoFimDoDia() {
+  const metaVisitasDia = await configService.getNumber('meta_visitas_dia');
+
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
@@ -209,8 +220,8 @@ async function alertaResumoFimDoDia() {
       }
     });
 
-    const emoji = visitasHoje >= META_VISITAS_DIA ? '🏆' : visitasHoje >= 7 ? '✅' : '❌';
-    resumo += `${emoji} ${vendedor.nome}\n   Visitas: ${visitasHoje}/${META_VISITAS_DIA}\n   Propostas: ${propostasHoje}\n\n`;
+    const emoji = visitasHoje >= metaVisitasDia ? '🏆' : visitasHoje >= 7 ? '✅' : '❌';
+    resumo += `${emoji} ${vendedor.nome}\n   Visitas: ${visitasHoje}/${metaVisitasDia}\n   Propostas: ${propostasHoje}\n\n`;
   }
 
   await whatsappService.enviarMensagem(whatsappGerente, resumo);

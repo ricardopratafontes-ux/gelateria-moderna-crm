@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { googleMapsService } from '../services/googleMapsService';
 import { whatsappService } from '../services/whatsappService';
+import { configService } from '../services/configService';
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,11 @@ const FREQUENCIA_IDEAL: Record<string, number> = {
 export function iniciarPlanejamentoRotaDiaria() {
   // Executa todos os dias às 7h
   cron.schedule('0 7 * * *', async () => {
+    const ativo = await configService.getBool('rota_diaria_ativo');
+    if (!ativo) {
+      console.log('[JOB] Planejamento de rota diária DESATIVADO nas configurações');
+      return;
+    }
     console.log('[JOB] Planejamento de rota diária iniciado');
     try {
       await planejarRotaDoDia();

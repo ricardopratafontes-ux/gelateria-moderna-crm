@@ -11,6 +11,7 @@ import VendasPage from './pages/vendas';
 import ComissoesPage from './pages/comissoes';
 import VendedoresPage from './pages/vendedores';
 import RotasPage from './pages/rotas';
+import ConfiguracoesPage from './pages/configuracoes';
 
 // Pages - Vendedor
 import VendedorPage from './pages/vendedor';
@@ -85,6 +86,7 @@ function AppRoutes() {
       <Route path="/comissoes" element={<ProtectedRoute requiredRole="gerente"><ComissoesPage /></ProtectedRoute>} />
       <Route path="/vendedores" element={<ProtectedRoute requiredRole="gerente"><VendedoresPage /></ProtectedRoute>} />
       <Route path="/rotas" element={<ProtectedRoute requiredRole="gerente"><RotasPage /></ProtectedRoute>} />
+      <Route path="/configuracoes" element={<ProtectedRoute requiredRole="gerente"><ConfiguracoesPage /></ProtectedRoute>} />
 
       {/* ===== VENDEDOR ===== */}
       <Route path="/vendedor" element={<ProtectedRoute requiredRole="vendedor"><VendedorPage /></ProtectedRoute>} />

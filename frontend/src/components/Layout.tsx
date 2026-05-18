@@ -15,6 +15,7 @@ const menuGerente = [
   { path: '/comissoes', label: 'Comissões', icon: '💵' },
   { path: '/vendedores', label: 'Vendedores', icon: '🧑‍💼' },
   { path: '/rotas', label: 'Rotas', icon: '🗺️' },
+  { path: '/configuracoes', label: 'Configurações', icon: '⚙️' },
 ];
 
 const menuVendedor = [
