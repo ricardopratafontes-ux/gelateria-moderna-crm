@@ -73,6 +73,36 @@ app.get('/api/test/whatsapp', async (req, res) => {
   }
 });
 
+// Teste Google Maps (temporário - remover em produção)
+app.get('/api/test/googlemaps', async (req, res) => {
+  try {
+    const { googleMapsService } = await import('./services/googleMapsService');
+    const endereco = (req.query.endereco as string) || 'Aracaju, Sergipe, Brasil';
+
+    // Teste 1: Geocoding
+    const coords = await googleMapsService.geocodificar(endereco);
+
+    // Teste 2: Distance Matrix (Aracaju centro → coordenada encontrada)
+    const distancia = await googleMapsService.calcularDistancia(
+      -10.9091, -37.0677, // Centro de Aracaju
+      coords.latitude, coords.longitude
+    );
+
+    res.json({
+      success: true,
+      api_key_configurada: !!process.env.GOOGLE_MAPS_API_KEY,
+      teste_geocoding: { endereco, ...coords },
+      teste_distancia: distancia
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      api_key_configurada: !!process.env.GOOGLE_MAPS_API_KEY
+    });
+  }
+});
+
 // Health check
 app.get('/health', (_req, res) => {
   res.json({
