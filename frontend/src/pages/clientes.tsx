@@ -30,10 +30,16 @@ const statusOptions = ['ativo', 'inativo', 'prospecto'];
 export const ClientesPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [showImportOmie, setShowImportOmie] = useState(false);
   const [editando, setEditando] = useState<Cliente | null>(null);
   const [filtroSegmento, setFiltroSegmento] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
   const [busca, setBusca] = useState('');
+  const [buscaOmie, setBuscaOmie] = useState('');
+  const [resultadosOmie, setResultadosOmie] = useState<any[]>([]);
+  const [buscandoOmie, setBuscandoOmie] = useState(false);
+  const [importandoOmie, setImportandoOmie] = useState<string | null>(null);
+  const [segmentoImport, setSegmentoImport] = useState('RESTAURANTE');
 
   // Form state
   const [form, setForm] = useState({
@@ -127,6 +133,34 @@ export const ClientesPage: React.FC = () => {
     }
   };
 
+  // Buscar no OMIE por nome
+  const buscarNoOmie = async () => {
+    if (buscaOmie.length < 3) return;
+    setBuscandoOmie(true);
+    try {
+      const response = await api.get(`/clientes/buscar-omie/${encodeURIComponent(buscaOmie)}`);
+      setResultadosOmie(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setResultadosOmie([]);
+    }
+    setBuscandoOmie(false);
+  };
+
+  // Importar um cliente do OMIE
+  const importarDoOmie = async (codigo_omie: string) => {
+    setImportandoOmie(codigo_omie);
+    try {
+      await api.post('/clientes/importar-omie', { codigo_omie, segmento: segmentoImport });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      // Remover da lista de resultados
+      setResultadosOmie(prev => prev.filter(r => r.codigo_omie !== codigo_omie));
+      alert('Cliente importado com sucesso!');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao importar');
+    }
+    setImportandoOmie(null);
+  };
+
   // Filtrar por busca
   const clientesFiltrados = (clientes as Cliente[]).filter(c =>
     !busca || c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -142,13 +176,22 @@ export const ClientesPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
             <p className="text-sm text-gray-600 mt-1">{clientesFiltrados.length} clientes cadastrados</p>
           </div>
-          <button
-            onClick={() => { resetForm(); setShowForm(true); }}
-            className="px-4 py-2 text-white rounded-lg font-semibold text-sm"
-            style={{ backgroundColor: COLORS.PRIMARY }}
-          >
-            + Novo Cliente
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setBuscaOmie(''); setResultadosOmie([]); setShowImportOmie(true); }}
+              className="px-4 py-2 border-2 rounded-lg font-semibold text-sm"
+              style={{ borderColor: COLORS.PRIMARY, color: COLORS.PRIMARY }}
+            >
+              Importar do OMIE
+            </button>
+            <button
+              onClick={() => { resetForm(); setShowForm(true); }}
+              className="px-4 py-2 text-white rounded-lg font-semibold text-sm"
+              style={{ backgroundColor: COLORS.PRIMARY }}
+            >
+              + Novo Cliente
+            </button>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -179,6 +222,86 @@ export const ClientesPage: React.FC = () => {
             </select>
           </div>
         </div>
+
+        {/* Modal: Importar do OMIE */}
+        {showImportOmie && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold text-gray-900">Importar Cliente do OMIE</h2>
+                  <button onClick={() => setShowImportOmie(false)} className="text-gray-500 text-2xl">&times;</button>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  Busque pelo nome do cliente no OMIE e importe com 1 clique. O código OMIE, CNPJ, telefone e endereço serão trazidos automaticamente.
+                </p>
+
+                {/* Busca */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={buscaOmie}
+                    onChange={(e) => setBuscaOmie(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && buscarNoOmie()}
+                    placeholder="Digite o nome do cliente..."
+                    className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                  />
+                  <button
+                    onClick={buscarNoOmie}
+                    disabled={buscandoOmie || buscaOmie.length < 3}
+                    className="px-4 py-2 text-white rounded-lg text-sm font-semibold"
+                    style={{ backgroundColor: COLORS.PRIMARY }}
+                  >
+                    {buscandoOmie ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
+
+                {/* Segmento para aplicar */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Segmento ao importar:</label>
+                  <select
+                    value={segmentoImport}
+                    onChange={(e) => setSegmentoImport(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm"
+                  >
+                    {segmentos.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                {/* Resultados */}
+                {resultadosOmie.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {resultadosOmie.map((r: any) => (
+                      <div key={r.codigo_omie} className="border rounded-lg p-3 hover:bg-gray-50">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{r.nome_fantasia}</p>
+                            <p className="text-xs text-gray-500">{r.razao_social}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              CNPJ: {r.cnpj || '-'} | Tel: {r.telefone || '-'}
+                            </p>
+                            <p className="text-xs text-gray-400">Código OMIE: {r.codigo_omie}</p>
+                          </div>
+                          <button
+                            onClick={() => importarDoOmie(r.codigo_omie)}
+                            disabled={importandoOmie === r.codigo_omie}
+                            className="ml-2 px-3 py-1.5 text-white rounded text-xs font-semibold shrink-0"
+                            style={{ backgroundColor: '#22c55e' }}
+                          >
+                            {importandoOmie === r.codigo_omie ? 'Importando...' : 'Importar'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : buscaOmie.length >= 3 && !buscandoOmie ? (
+                  <p className="text-sm text-gray-500 text-center py-4">Nenhum cliente encontrado no OMIE</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal/Form de cadastro */}
         {showForm && (

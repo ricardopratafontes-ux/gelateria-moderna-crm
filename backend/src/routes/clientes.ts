@@ -164,6 +164,88 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // ============================================================
+// GET /api/clientes/buscar-omie/:nome - Buscar cliente no OMIE por nome
+// Para importar um cliente novo que não está na lista dos 52
+// ============================================================
+router.get('/buscar-omie/:nome', auth, async (req, res) => {
+  try {
+    const { nome } = req.params;
+    if (!nome || nome.length < 3) {
+      return res.status(400).json({ error: 'Nome deve ter pelo menos 3 caracteres' });
+    }
+
+    const resultados = await omieService.buscarClientePorNome(nome);
+
+    // Formatar para o frontend
+    const formatados = resultados.map((c: any) => ({
+      codigo_omie: String(c.codigo_cliente_omie),
+      nome_fantasia: c.nome_fantasia || c.razao_social,
+      razao_social: c.razao_social,
+      cnpj: c.cnpj_cpf,
+      telefone: c.telefone1_numero,
+      email: c.email,
+      endereco: c.endereco ? `${c.endereco}, ${c.endereco_numero || ''} - ${c.bairro || ''}, ${c.cidade || ''}` : null,
+      cidade: c.cidade,
+      estado: c.estado
+    }));
+
+    res.json(formatados);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar no OMIE' });
+  }
+});
+
+// ============================================================
+// POST /api/clientes/importar-omie - Importar UM cliente do OMIE para o CRM
+// Recebe código OMIE, busca dados completos e cria no banco
+// ============================================================
+router.post('/importar-omie', auth, async (req, res) => {
+  try {
+    const { codigo_omie, segmento } = req.body;
+
+    if (!codigo_omie) {
+      return res.status(400).json({ error: 'codigo_omie é obrigatório' });
+    }
+
+    // Verificar se já existe
+    const existente = await prisma.cliente.findFirst({
+      where: { omie_codigo: String(codigo_omie) }
+    });
+
+    if (existente) {
+      return res.status(409).json({ error: 'Cliente já existe no CRM', cliente: existente });
+    }
+
+    // Buscar dados completos no OMIE
+    const dadosOmie = await omieService.buscarClientePorCodigo(String(codigo_omie));
+
+    if (!dadosOmie) {
+      return res.status(404).json({ error: 'Cliente não encontrado no OMIE' });
+    }
+
+    // Criar no banco
+    const cliente = await prisma.cliente.create({
+      data: {
+        nome_fantasia: dadosOmie.nome_fantasia || dadosOmie.razao_social,
+        cnpj: dadosOmie.cnpj_cpf || null,
+        segmento: segmento || null,
+        endereco: dadosOmie.endereco ? `${dadosOmie.endereco}, ${dadosOmie.endereco_numero || ''} - ${dadosOmie.bairro || ''}, ${dadosOmie.cidade || ''}` : null,
+        telefone: dadosOmie.telefone1_numero || null,
+        email: dadosOmie.email || null,
+        whatsapp: dadosOmie.telefone1_numero || null,
+        omie_codigo: String(codigo_omie),
+        origem: 'omie',
+        status: 'ativo'
+      }
+    });
+
+    res.status(201).json(cliente);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao importar do OMIE' });
+  }
+});
+
+// ============================================================
 // POST /api/clientes/importar - Importar clientes em lote (da planilha)
 // ============================================================
 router.post('/importar', auth, async (req, res) => {
