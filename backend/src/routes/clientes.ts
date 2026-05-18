@@ -192,8 +192,12 @@ router.get('/buscar-omie/:nome', auth, async (req, res) => {
     res.json(formatados);
   } catch (error: any) {
     const faultstring = error?.response?.data?.faultstring || '';
-    if (faultstring.includes('REDUNDANT') || faultstring.includes('redundante')) {
-      res.status(429).json({ error: 'API OMIE em rate limit. Aguarde 1 minuto e tente novamente.' });
+    const faultcode = error?.response?.data?.faultcode || '';
+    if (faultstring.includes('REDUNDANT') || faultstring.includes('redundante') || faultcode === 'MISUSE_API_PROCESS' || faultstring.includes('bloqueada')) {
+      // Extrair tempo de espera se disponível
+      const match = faultstring.match(/(\d+) segundo/);
+      const segundos = match ? match[1] : '60';
+      res.status(429).json({ error: `API OMIE bloqueada. Aguarde ${segundos} segundos e tente novamente.` });
     } else {
       console.error('Erro buscar OMIE:', error?.response?.data || error.message);
       res.status(500).json({ error: 'Erro ao buscar no OMIE' });

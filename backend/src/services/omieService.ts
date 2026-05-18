@@ -78,9 +78,10 @@ export const omieService = {
       return data?.clientes_cadastro || [];
     } catch (error: any) {
       const faultstring = error?.response?.data?.faultstring || '';
-      // Se for rate limit, propagar o erro para a rota tratar
-      if (faultstring.includes('REDUNDANT') || faultstring.includes('redundante')) {
-        console.error(`[OMIE] Rate limit ao buscar "${nome_fantasia}": ${faultstring}`);
+      const faultcode = error?.response?.data?.faultcode || '';
+      // Se for rate limit ou bloqueio por uso indevido, propagar o erro
+      if (faultstring.includes('REDUNDANT') || faultstring.includes('redundante') || faultcode === 'MISUSE_API_PROCESS' || faultstring.includes('bloqueada')) {
+        console.error(`[OMIE] Rate limit/bloqueio ao buscar "${nome_fantasia}": ${faultstring}`);
         throw error;
       }
       // Se nao encontrou registros (erro normal da OMIE), retorna vazio
