@@ -55,18 +55,19 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/vendas', vendasRoutes);
 
 // Teste WhatsApp (temporário - remover em produção)
-app.get('/api/test/whatsapp', async (_req, res) => {
+// Aceita ?telefone=5579991052599 para testar com número específico
+app.get('/api/test/whatsapp', async (req, res) => {
   try {
     const { whatsappService } = await import('./services/whatsappService');
-    const telefone = process.env.WHATSAPP_GERENTE;
+    const telefone = (req.query.telefone as string) || process.env.WHATSAPP_GERENTE;
     if (!telefone) {
-      return res.status(400).json({ error: 'WHATSAPP_GERENTE não configurado' });
+      return res.status(400).json({ error: 'WHATSAPP_GERENTE não configurado e nenhum telefone informado via ?telefone=' });
     }
     const resultado = await whatsappService.enviarMensagem(
       telefone,
       '✅ *CRM Gelateria Moderna*\n\nTeste de integração WhatsApp realizado com sucesso!\n\nData: ' + new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
     );
-    res.json({ success: true, resultado, telefone_destino: telefone });
+    res.json({ success: true, resultado, telefone_destino: telefone, apikey_usada: process.env.TEXTMEBOT_API_KEY ? 'sim (configurada)' : 'NÃO CONFIGURADA' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
