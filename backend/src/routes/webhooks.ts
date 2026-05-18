@@ -41,12 +41,15 @@ router.post('/omie', async (req, res) => {
 
     console.log(`[WEBHOOK OMIE] Evento: ${evento} | Payload keys: ${Object.keys(payload).join(', ')}`);
 
-    // Roteamento por tipo de evento
-    if (evento.startsWith('pedidovenda.')) {
+    // Roteamento por tipo de evento (nomes reais dos tópicos OMIE)
+    // VendaProduto = pedidos de venda
+    if (evento.startsWith('vendaproduto.') || evento.startsWith('pedidovenda.')) {
       await processarPedidoVenda(evento, payload);
-    } else if (evento.startsWith('contareceber.')) {
+    // Financas.ContaReceber = contas a receber
+    } else if (evento.startsWith('financas.contareceber.') || evento.startsWith('contareceber.')) {
       await processarContaReceber(evento, payload);
-    } else if (evento.startsWith('cliente.')) {
+    // ClienteFornecedor = clientes
+    } else if (evento.startsWith('clientefornecedor.') || evento.startsWith('cliente.')) {
       await processarCliente(evento, payload);
     } else {
       console.log(`[WEBHOOK OMIE] Evento não tratado: ${evento}`);
@@ -266,14 +269,18 @@ router.get('/omie/test', (_req, res) => {
     message: 'Webhook OMIE endpoint ativo',
     timestamp: new Date().toISOString(),
     eventos_suportados: [
-      'pedidovenda.incluido',
-      'pedidovenda.alterado',
-      'pedidovenda.excluido',
-      'contareceber.incluido',
-      'contareceber.alterado',
-      'cliente.incluido',
-      'cliente.alterado',
-      'cliente.excluido'
+      'vendaproduto.incluida',
+      'vendaproduto.alterada',
+      'vendaproduto.cancelada',
+      'vendaproduto.excluida',
+      'vendaproduto.faturada',
+      'vendaproduto.etapaalterada',
+      'financas.contareceber.alterado',
+      'financas.contareceber.baixarealizada',
+      'financas.contareceber.incluido',
+      'clientefornecedor.alterado',
+      'clientefornecedor.excluido',
+      'clientefornecedor.incluido'
     ]
   });
 });
