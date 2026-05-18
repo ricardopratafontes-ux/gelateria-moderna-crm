@@ -330,12 +330,13 @@ router.post('/importar', auth, async (req, res) => {
 });
 
 // ============================================================
-// POST /api/clientes/mapear-omie - Buscar códigos OMIE por nome para todos os clientes
-// Busca cada cliente no OMIE pela API e salva o código encontrado
+// POST /api/clientes/mapear-omie - Mapear códigos OMIE via bulk fetch
+// Busca TODOS os clientes do OMIE de uma vez (1-2 chamadas API)
+// e faz matching local por nome — evita rate limit
 // ============================================================
 router.post('/mapear-omie', auth, async (req, res) => {
   try {
-    // Buscar clientes que NÃO têm código OMIE ainda
+    // 1) Buscar clientes CRM que NÃO têm código OMIE ainda
     const clientesSemOmie = await prisma.cliente.findMany({
       where: {
         OR: [
@@ -350,42 +351,109 @@ router.post('/mapear-omie', auth, async (req, res) => {
       return res.json({ message: 'Todos os clientes já têm código OMIE', mapeados: 0 });
     }
 
+    // 2) Buscar TODOS os clientes do OMIE (paginado, ~50 por página)
+    let todosOmie: any[] = [];
+    let pagina = 1;
+    let totalPaginas = 1;
+
+    do {
+      const resultado = await omieService.listarTodosClientes(pagina);
+      todosOmie.push(...resultado.clientes);
+      totalPaginas = resultado.total_paginas;
+      pagina++;
+      // Rate limit entre páginas (se houver mais de 1)
+      if (pagina <= totalPaginas) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } while (pagina <= totalPaginas);
+
+    if (todosOmie.length === 0) {
+      return res.json({ message: 'Nenhum cliente encontrado no OMIE', mapeados: 0 });
+    }
+
+    // 3) Criar mapa de clientes OMIE por nome_fantasia normalizado
+    const normalizar = (s: string) => (s || '').trim().toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove acentos
+      .replace(/[^a-z0-9\s]/g, '') // remove caracteres especiais
+      .replace(/\s+/g, ' ');
+
+    // Mapa: nome_normalizado -> lista de clientes OMIE com esse nome
+    const mapaOmie = new Map<string, any[]>();
+    for (const cli of todosOmie) {
+      const nomeNorm = normalizar(cli.nome_fantasia);
+      const razaoNorm = normalizar(cli.razao_social);
+      // Indexar tanto por nome_fantasia quanto razao_social
+      for (const chave of [nomeNorm, razaoNorm]) {
+        if (!chave) continue;
+        if (!mapaOmie.has(chave)) mapaOmie.set(chave, []);
+        mapaOmie.get(chave)!.push(cli);
+      }
+    }
+
+    // 4) Fazer matching local
     const resultados = {
       mapeados: 0,
       nao_encontrados: [] as string[],
-      multiplos: [] as { nome: string, opcoes: any[] }[],
-      erros: [] as string[]
+      multiplos: [] as { nome: string; opcoes: any[] }[],
+      erros: [] as string[],
+      total_omie: todosOmie.length,
+      total_sem_codigo: clientesSemOmie.length
     };
 
     for (const cliente of clientesSemOmie) {
       try {
-        // Buscar no OMIE pelo nome fantasia
-        const resultadosOmie = await omieService.buscarClientePorNome(cliente.nome_fantasia);
+        const nomeNorm = normalizar(cliente.nome_fantasia);
 
-        if (resultadosOmie.length === 0) {
+        // Busca exata primeiro
+        let matches = mapaOmie.get(nomeNorm);
+
+        // Se não encontrou exato, busca parcial (nome CRM contém ou está contido no OMIE)
+        if (!matches || matches.length === 0) {
+          const matchesParciais: any[] = [];
+          for (const cli of todosOmie) {
+            const omieNome = normalizar(cli.nome_fantasia);
+            const omieRazao = normalizar(cli.razao_social);
+            if (
+              (omieNome && (omieNome.includes(nomeNorm) || nomeNorm.includes(omieNome))) ||
+              (omieRazao && (omieRazao.includes(nomeNorm) || nomeNorm.includes(omieRazao)))
+            ) {
+              matchesParciais.push(cli);
+            }
+          }
+          // Deduplica por codigo_cliente_omie
+          const vistos = new Set<number>();
+          matches = matchesParciais.filter(m => {
+            if (vistos.has(m.codigo_cliente_omie)) return false;
+            vistos.add(m.codigo_cliente_omie);
+            return true;
+          });
+        }
+
+        if (!matches || matches.length === 0) {
           resultados.nao_encontrados.push(cliente.nome_fantasia);
-        } else if (resultadosOmie.length === 1) {
-          // Match único - salvar código
-          const telCompleto = [resultadosOmie[0].telefone1_ddd, resultadosOmie[0].telefone1_numero]
+        } else if (matches.length === 1) {
+          // Match único — salvar código e dados complementares
+          const m = matches[0];
+          const telCompleto = [m.telefone1_ddd, m.telefone1_numero]
             .filter(Boolean)
             .join('')
             .replace(/\D/g, '');
           await prisma.cliente.update({
             where: { id: cliente.id },
             data: {
-              omie_codigo: String(resultadosOmie[0].codigo_cliente_omie),
-              cnpj: resultadosOmie[0].cnpj_cpf || cliente.cnpj,
+              omie_codigo: String(m.codigo_cliente_omie),
+              cnpj: m.cnpj_cpf || cliente.cnpj,
               telefone: telCompleto || cliente.telefone,
               whatsapp: telCompleto || cliente.whatsapp,
-              email: resultadosOmie[0].email || cliente.email
+              email: m.email || cliente.email
             }
           });
           resultados.mapeados++;
         } else {
-          // Múltiplos resultados - precisa resolver manualmente
+          // Múltiplos resultados — precisa resolver manualmente
           resultados.multiplos.push({
             nome: cliente.nome_fantasia,
-            opcoes: resultadosOmie.map(r => ({
+            opcoes: matches.map(r => ({
               codigo_omie: r.codigo_cliente_omie,
               nome_fantasia: r.nome_fantasia,
               razao_social: r.razao_social,
@@ -393,10 +461,6 @@ router.post('/mapear-omie', auth, async (req, res) => {
             }))
           });
         }
-
-        // Rate limit OMIE - 2s entre chamadas
-        await new Promise(r => setTimeout(r, 2000));
-
       } catch (err: any) {
         resultados.erros.push(`${cliente.nome_fantasia}: ${err.message}`);
       }
@@ -404,6 +468,7 @@ router.post('/mapear-omie', auth, async (req, res) => {
 
     res.json(resultados);
   } catch (error) {
+    console.error('Erro ao mapear clientes OMIE:', error);
     res.status(500).json({ error: 'Erro ao mapear clientes OMIE' });
   }
 });
