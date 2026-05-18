@@ -50,7 +50,7 @@ export const ClientesPage: React.FC = () => {
       if (filtroSegmento) params.append('segmento', filtroSegmento);
       if (filtroStatus) params.append('status', filtroStatus);
       const response = await api.get(`/clientes?${params.toString()}`);
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

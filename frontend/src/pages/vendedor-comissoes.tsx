@@ -11,7 +11,7 @@ export const VendedorComissoesPage: React.FC = () => {
     queryKey: ['minhas-comissoes', filtroMes],
     queryFn: async () => {
       const response = await api.get(`/comissoes?mes=${filtroMes}`);
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

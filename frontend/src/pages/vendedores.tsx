@@ -32,7 +32,7 @@ export const VendedoresPage: React.FC = () => {
     queryKey: ['vendedores'],
     queryFn: async () => {
       const response = await api.get('/vendedores');
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

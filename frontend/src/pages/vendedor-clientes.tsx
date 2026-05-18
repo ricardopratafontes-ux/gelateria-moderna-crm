@@ -12,7 +12,7 @@ export const VendedorClientesPage: React.FC = () => {
     queryKey: ['meus-clientes'],
     queryFn: async () => {
       const response = await api.get('/clientes');
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

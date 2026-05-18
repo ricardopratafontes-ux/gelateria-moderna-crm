@@ -43,7 +43,7 @@ export const LeadsPage: React.FC = () => {
     queryFn: async () => {
       const params = filtroStatus ? `?status=${filtroStatus}` : '';
       const response = await api.get(`/leads${params}`);
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

@@ -32,7 +32,7 @@ export const ComissoesPage: React.FC = () => {
       if (filtroMes) params.append('mes', filtroMes);
       if (filtroTipo) params.append('tipo', filtroTipo);
       const response = await api.get(`/comissoes?${params.toString()}`);
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

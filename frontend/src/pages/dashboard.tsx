@@ -10,7 +10,7 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // BUSCAR DADOS DO DASHBOARD
-  const { data: dashboardData } = useQuery({
+  const { data: dashboardData, isError } = useQuery({
     queryKey: ['dashboard', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
       const response = await api.get('/dashboard/hoje');
@@ -20,11 +20,20 @@ export const Dashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    if (dashboardData) {
+    if (dashboardData && typeof dashboardData === 'object') {
       setData(dashboardData);
       setLoading(false);
+    } else if (isError) {
+      // Se der erro na API, mostra dashboard vazio
+      setData({
+        visitas: { realizadas: 0, meta: LIMITS.META_VISITAS_DIA, clientes_visitados: [] },
+        vendas: { total_mes: 0, quantidade: 0, ticket_medio: 0 },
+        leads: { novos: 0, em_andamento: 0, convertidos: 0 },
+        alertas: []
+      });
+      setLoading(false);
     }
-  }, [dashboardData]);
+  }, [dashboardData, isError]);
 
   if (loading) {
     return <Layout><div className="p-8 text-center">Carregando dashboard...</div></Layout>;

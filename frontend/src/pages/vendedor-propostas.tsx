@@ -32,7 +32,7 @@ export const VendedorPropostasPage: React.FC = () => {
     queryKey: ['minhas-propostas'],
     queryFn: async () => {
       const response = await api.get('/propostas');
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 
@@ -41,7 +41,7 @@ export const VendedorPropostasPage: React.FC = () => {
     queryKey: ['clientes-proposta'],
     queryFn: async () => {
       const response = await api.get('/clientes?status=ativo');
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

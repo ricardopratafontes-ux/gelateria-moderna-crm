@@ -45,7 +45,7 @@ export const VendasPage: React.FC = () => {
       if (filtroStatus) params.append('status', filtroStatus);
       if (filtroMes) params.append('mes', filtroMes);
       const response = await api.get(`/vendas?${params.toString()}`);
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 
@@ -54,7 +54,7 @@ export const VendasPage: React.FC = () => {
     queryKey: ['clientes-select'],
     queryFn: async () => {
       const response = await api.get('/clientes?status=ativo');
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 

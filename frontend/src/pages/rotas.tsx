@@ -26,7 +26,7 @@ export const RotasPage: React.FC = () => {
     queryKey: ['rotas', dataSelecionada],
     queryFn: async () => {
       const response = await api.get(`/rotas?data=${dataSelecionada}`);
-      return response.data;
+      return Array.isArray(response.data) ? response.data : [];
     }
   });
 
