@@ -252,8 +252,6 @@ router.post('/importar-omie', auth, async (req, res) => {
         cnpj: dadosOmie.cnpj_cpf || null,
         segmento: segmento || null,
         endereco: dadosOmie.endereco ? `${dadosOmie.endereco}, ${dadosOmie.endereco_numero || ''} - ${dadosOmie.bairro || ''}, ${dadosOmie.cidade || ''}` : null,
-        cidade: dadosOmie.cidade || null,
-        bairro: dadosOmie.bairro || null,
         telefone: telefoneCompleto || null,
         email: dadosOmie.email || null,
         whatsapp: telefoneCompleto || null,
@@ -499,8 +497,6 @@ router.post('/sync-omie', auth, async (req, res) => {
           const novoEndereco = `${dadosOmie.endereco}, ${dadosOmie.endereco_numero || ''} - ${dadosOmie.bairro || ''}, ${dadosOmie.cidade || ''}`;
           if (novoEndereco !== cliente.endereco) {
             updates.endereco = novoEndereco;
-            updates.cidade = dadosOmie.cidade || cliente.cidade;
-            updates.bairro = dadosOmie.bairro || cliente.bairro;
           }
         }
 

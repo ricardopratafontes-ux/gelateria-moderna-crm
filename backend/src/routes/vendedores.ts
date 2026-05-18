@@ -263,7 +263,7 @@ router.post('/sync-omie', auth, async (req, res) => {
         if (!nome) continue;
 
         // Tentar encontrar por email ou nome
-        let existente = null;
+        let existente: any = null;
         if (email) {
           existente = await prisma.vendedor.findFirst({ where: { email } });
         }
