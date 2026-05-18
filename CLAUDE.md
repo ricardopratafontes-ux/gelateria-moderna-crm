@@ -421,6 +421,96 @@ if (tempo_parado > 15 * 60 * 1000 && desvio < 500) {
 **Solução:** Sistema permite sobrescrever média manualmente, deixa gerenciável
 **Campo:** `clientes.media_mensal_customizada` (sobrescreve cálculo automático)
 
+### ❌ GOTCHA 8: Rate limit OMIE por chamadas individuais
+**Problema:** Fazer N chamadas individuais à API OMIE (ex: buscar 52 clientes um por um) causa bloqueio por "consumo indevido" (MISUSE_API_PROCESS). A API fica bloqueada por 57-294 segundos.
+**Solução:** SEMPRE usar endpoints bulk (ListarClientes, ListarPedidos) + matching local. Ver regra obrigatória na seção 6.1.
+```typescript
+// ❌ ERRADO - N chamadas individuais
+for (const cliente of clientes) {
+  await omieService.buscarClientePorNome(cliente.nome); // BLOQUEIO!
+}
+
+// ✅ CORRETO - 1-2 chamadas bulk + matching local
+const todosOmie = await omieService.listarTodosClientes(pagina);
+const mapa = new Map();
+for (const cli of todosOmie) { mapa.set(normalizar(cli.nome_fantasia), cli); }
+for (const cliente of clientes) { const match = mapa.get(normalizar(cliente.nome)); }
+```
+
+### ❌ GOTCHA 9: Prisma Decimal vem como string no frontend
+**Problema:** Campos `Decimal` do Prisma (valor_total, media_mensal_historica) chegam como string no frontend. Chamar `.toFixed()` direto dá erro "toFixed is not a function".
+**Solução:** SEMPRE envolver com `Number()` antes de formatar.
+```typescript
+// ❌ ERRADO
+<td>R$ {venda.valor_total?.toFixed(2)}</td>
+
+// ✅ CORRETO
+<td>R$ {Number(venda.valor_total || 0).toFixed(2)}</td>
+```
+
+### ❌ GOTCHA 10: Git push no Windows — shell incompatível
+**Problema:** CMD não aceita paths com espaços/acentos do OneDrive. PowerShell engole output do Git Bash. Cada tentativa errada desperdiça tempo.
+**Solução:** Usar EXCLUSIVAMENTE o sandbox bash via mount:
+```bash
+# ✅ ÚNICO MÉTODO CORRETO para git no projeto
+cd "/sessions/great-ecstatic-curie/mnt/CRM Gelateria Moderna"
+git add -A && git commit -m "mensagem" && git push origin main
+```
+
+---
+
+## 6.1 🚨 REGRAS OBRIGATÓRIAS — LEIA ANTES DE QUALQUER CÓDIGO
+
+> **Estas regras existem porque erros reais aconteceram e causaram retrabalho, desperdício de créditos e perda de tempo. Seguir estas regras é OBRIGATÓRIO, sem exceções.**
+
+### REGRA 1: APIs externas — SEMPRE bulk, NUNCA individual
+- **Antes de chamar qualquer API externa em loop**, pare e procure o endpoint de listagem em massa
+- OMIE: usar `ListarClientes` (50/página), `ListarPedidos` com filtro por período, `ListarContasReceber`
+- Google Maps: agrupar waypoints em 1 chamada (máx 25), não fazer 1 chamada por ponto
+- Se não existir endpoint bulk, implementar com delay mínimo de 2 segundos entre chamadas
+- **TESTE COM 1-2 REGISTROS PRIMEIRO** antes de rodar em lote
+
+### REGRA 2: Entender o erro ANTES de reescrever
+- Quando algo falha, **diagnosticar a causa raiz** antes de mudar a abordagem
+- Ler o log de erro completo, não apenas a mensagem resumida
+- Se o erro é de rate limit, a solução é otimizar chamadas — não reescrever a lógica inteira
+- Se o erro é de tipagem, a solução é um cast — não reestruturar o componente
+- **PROIBIDO:** tentar 3 abordagens diferentes por tentativa-e-erro. Máximo 1 correção direcionada
+
+### REGRA 3: Git push — método único padronizado
+- Usar APENAS `mcp__workspace__bash` com o path de mount do sandbox
+- **PROIBIDO:** testar CMD, PowerShell, Desktop Commander, Git Bash nativo alternadamente
+- Se o bash do sandbox não funcionar, informar o usuário e pedir para executar manualmente
+- Commit message sempre em português, formato: `tipo: descrição curta`
+
+### REGRA 4: Testar localmente antes de deploiar
+- Toda mudança no backend deve ser verificada quanto a erros de TypeScript ANTES do push
+- Se possível, testar o endpoint com curl/fetch simulado antes de deploiar
+- **Nunca deploiar código que você não tem certeza que compila**
+
+### REGRA 5: Não desperdiçar créditos com screenshots repetitivos
+- Máximo 3 tentativas de verificação de deploy (aguardar intervalos maiores)
+- Se o deploy demora, aguardar 60-90 segundos de uma vez ao invés de verificar a cada 10s
+- Usar `browser_batch` para agrupar ações, nunca fazer 1 ação por chamada
+
+### REGRA 6: Documentar ANTES de implementar
+- Antes de integrar com qualquer API nova, ler a documentação oficial
+- Salvar os endpoints, limites e formatos como memória/referência
+- Planejar a arquitetura (bulk vs individual, cache vs real-time) ANTES de escrever código
+- Se a documentação não está clara, testar com 1 chamada manual primeiro
+
+### REGRA 7: Proteger dados — nunca perder o que já funciona
+- Antes de alterar arquivo que está funcionando, verificar o que vai mudar
+- Se a mudança é grande, fazer em arquivo separado e testar antes de substituir
+- NUNCA sobrescrever dados do banco (media_mensal_historica, total_vendas) sem backup do valor anterior
+- Se um sync falhar no meio, os dados já processados devem estar salvos (transações parciais OK)
+
+### REGRA 8: Comunicação transparente com o usuário
+- Se algo vai demorar ou pode falhar, avisar ANTES de começar
+- Se cometeu um erro, admitir imediatamente e apresentar a correção específica
+- Não repetir o mesmo erro 2 vezes na mesma sessão
+- Se não tem certeza de como fazer algo, perguntar ao usuário ao invés de tentar e errar
+
 ---
 
 ## 7️⃣ REGRAS DE EDIÇÃO ESPECÍFICAS
