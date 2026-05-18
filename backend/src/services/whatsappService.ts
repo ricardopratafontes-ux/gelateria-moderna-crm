@@ -1,26 +1,36 @@
 import axios from 'axios';
 
-const TEXTMEBOT_API = axios.create({
-  baseURL: 'https://api.textmebot.com',
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+// TextMeBot usa GET com query params (não POST com JSON)
+// Docs: https://textmebot.com/send-text-messages/
+// Delay mínimo recomendado: 5 segundos entre mensagens
 
 export const whatsappService = {
   // ENVIAR MENSAGEM WHATSAPP
   async enviarMensagem(telefone: string, mensagem: string) {
     try {
-      const response = await TEXTMEBOT_API.post('/send', {
-        apikey: process.env.TEXTMEBOT_API_KEY,
-        phone: telefone.replace(/\D/g, ''),
-        message: mensagem
+      const apiKey = process.env.TEXTMEBOT_API_KEY;
+      if (!apiKey) {
+        console.error('TEXTMEBOT_API_KEY não configurada');
+        return { success: false, error: 'API key não configurada' };
+      }
+
+      const phoneClean = telefone.replace(/\D/g, '');
+      const response = await axios.get('https://api.textmebot.com/send.php', {
+        params: {
+          recipient: phoneClean,
+          apikey: apiKey,
+          text: mensagem,
+          json: 'yes'
+        },
+        timeout: 30000
       });
 
+      console.log(`[WHATSAPP] Mensagem enviada para ${phoneClean}:`, response.data);
       return response.data;
-    } catch (error) {
-      console.error('Erro ao enviar WhatsApp:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('Erro ao enviar WhatsApp:', error?.message || error);
+      // Não propagar erro para não travar jobs
+      return { success: false, error: error?.message };
     }
   },
 

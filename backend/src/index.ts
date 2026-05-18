@@ -54,6 +54,24 @@ app.use('/api/leads', leadsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/vendas', vendasRoutes);
 
+// Teste WhatsApp (temporário - remover em produção)
+app.get('/api/test/whatsapp', async (_req, res) => {
+  try {
+    const { whatsappService } = await import('./services/whatsappService');
+    const telefone = process.env.WHATSAPP_GERENTE;
+    if (!telefone) {
+      return res.status(400).json({ error: 'WHATSAPP_GERENTE não configurado' });
+    }
+    const resultado = await whatsappService.enviarMensagem(
+      telefone,
+      '✅ *CRM Gelateria Moderna*\n\nTeste de integração WhatsApp realizado com sucesso!\n\nData: ' + new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    );
+    res.json({ success: true, resultado, telefone_destino: telefone });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (_req, res) => {
   res.json({
