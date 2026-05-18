@@ -236,5 +236,75 @@ export const omieService = {
       console.error('Erro ao listar todos clientes OMIE:', error?.response?.data || error.message);
       return { clientes: [], total_paginas: 1, total_registros: 0 };
     }
+  },
+
+  // ============================================================
+  // LISTAR VENDEDORES DO OMIE
+  // ============================================================
+  async listarVendedores(pagina = 1) {
+    try {
+      const data = await chamarOmie('/geral/vendedores/', 'ListarVendedores', [
+        {
+          pagina,
+          registros_por_pagina: 50
+        }
+      ]);
+      return {
+        vendedores: data?.cadastro || [],
+        total_paginas: data?.total_de_paginas || 1,
+        total_registros: data?.total_de_registros || 0
+      };
+    } catch (error: any) {
+      console.error('Erro ao listar vendedores OMIE:', error?.response?.data || error.message);
+      return { vendedores: [], total_paginas: 1, total_registros: 0 };
+    }
+  },
+
+  // ============================================================
+  // BUSCAR PEDIDOS POR PERÍODO (todos os clientes)
+  // Para popular a tela de vendas
+  // ============================================================
+  async buscarPedidosPeriodo(dataInicio: string, dataFim: string, pagina = 1) {
+    try {
+      const data = await chamarOmie('/produtos/pedido/', 'ListarPedidos', [
+        {
+          pagina,
+          registros_por_pagina: 50,
+          filtrar_por_data_de: dataInicio,
+          filtrar_por_data_ate: dataFim
+        }
+      ]);
+      return {
+        pedidos: data?.pedido_venda_produto || [],
+        total_paginas: data?.total_de_paginas || 1,
+        total_registros: data?.total_de_registros || 0
+      };
+    } catch (error: any) {
+      const faultstring = error?.response?.data?.faultstring || '';
+      if (faultstring.includes('não localizado') || faultstring.includes('Nenhum registro')) {
+        return { pedidos: [], total_paginas: 1, total_registros: 0 };
+      }
+      console.error('Erro ao buscar pedidos período:', error?.response?.data || error.message);
+      return { pedidos: [], total_paginas: 1, total_registros: 0 };
+    }
+  },
+
+  // ============================================================
+  // TROCAR ETAPA DE UM PEDIDO
+  // Permite mudar etapa do pedido a partir do nosso app
+  // ============================================================
+  async trocarEtapaPedido(codigo_pedido: number, etapa: string) {
+    try {
+      const data = await chamarOmie('/produtos/pedido/', 'TrocarEtapaPedido', [
+        {
+          codigo_pedido,
+          etapa
+        }
+      ]);
+      return data;
+    } catch (error: any) {
+      console.error(`Erro ao trocar etapa pedido ${codigo_pedido}:`, error?.response?.data || error.message);
+      throw error;
+    }
   }
 };

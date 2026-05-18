@@ -22,6 +22,7 @@ export const VendedoresPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Vendedor | null>(null);
+  const [syncMsg, setSyncMsg] = useState('');
 
   const [form, setForm] = useState({
     nome: '', email: '', telefone: '', whatsapp: '', meta_mensal: '', status: 'ativo'
@@ -45,6 +46,23 @@ export const VendedoresPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendedores'] });
       resetForm();
+    }
+  });
+
+  // Sincronizar vendedores do OMIE
+  const syncOmie = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/vendedores/sync-omie');
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['vendedores'] });
+      setSyncMsg(`OMIE: ${data.importados} importados, ${data.atualizados} atualizados (${data.total_omie} no OMIE)`);
+      setTimeout(() => setSyncMsg(''), 8000);
+    },
+    onError: () => {
+      setSyncMsg('Erro ao sincronizar com OMIE');
+      setTimeout(() => setSyncMsg(''), 5000);
     }
   });
 
@@ -98,14 +116,30 @@ export const VendedoresPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900">Vendedores</h1>
             <p className="text-sm text-gray-600 mt-1">Gestão da equipe comercial</p>
           </div>
-          <button
-            onClick={() => { resetForm(); setShowForm(true); }}
-            className="px-4 py-2 text-white rounded-lg font-semibold text-sm"
-            style={{ backgroundColor: COLORS.PRIMARY }}
-          >
-            + Novo Vendedor
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => syncOmie.mutate()}
+              disabled={syncOmie.isPending}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {syncOmie.isPending ? 'Sincronizando...' : '🔄 Importar do OMIE'}
+            </button>
+            <button
+              onClick={() => { resetForm(); setShowForm(true); }}
+              className="px-4 py-2 text-white rounded-lg font-semibold text-sm"
+              style={{ backgroundColor: COLORS.PRIMARY }}
+            >
+              + Novo Vendedor
+            </button>
+          </div>
         </div>
+
+        {/* Sync Message */}
+        {syncMsg && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm">
+            {syncMsg}
+          </div>
+        )}
 
         {/* Form Modal */}
         {showForm && (

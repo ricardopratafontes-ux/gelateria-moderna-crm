@@ -1,6 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { auth } from '../middleware/auth';
+import { omieService } from '../services/omieService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -218,6 +219,100 @@ router.get('/:id/localizacao', auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar localização' });
+  }
+});
+
+// ============================================================
+// POST /api/vendedores/sync-omie - Importar vendedores do OMIE
+// Busca vendedores cadastrados no OMIE e cria/atualiza no CRM
+// ============================================================
+router.post('/sync-omie', auth, async (req, res) => {
+  try {
+    let todosVendedores: any[] = [];
+    let pagina = 1;
+    let totalPaginas = 1;
+
+    // Paginar todos os vendedores do OMIE
+    do {
+      const resultado = await omieService.listarVendedores(pagina);
+      todosVendedores.push(...resultado.vendedores);
+      totalPaginas = resultado.total_paginas;
+      pagina++;
+
+      // Rate limit
+      if (pagina <= totalPaginas) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } while (pagina <= totalPaginas);
+
+    if (todosVendedores.length === 0) {
+      return res.json({ message: 'Nenhum vendedor encontrado no OMIE', importados: 0, atualizados: 0 });
+    }
+
+    let importados = 0;
+    let atualizados = 0;
+    const erros: string[] = [];
+
+    for (const v of todosVendedores) {
+      try {
+        const nome = v.nome || '';
+        const email = v.email || '';
+        const telefone = [v.fax_ddd, v.fax_numero].filter(Boolean).join('').replace(/\D/g, '') ||
+                         [v.telefone_ddd, v.telefone_numero].filter(Boolean).join('').replace(/\D/g, '');
+        const inativo = v.inativo === 'S';
+
+        if (!nome) continue;
+
+        // Tentar encontrar por email ou nome
+        let existente = null;
+        if (email) {
+          existente = await prisma.vendedor.findFirst({ where: { email } });
+        }
+        if (!existente) {
+          existente = await prisma.vendedor.findFirst({ where: { nome } });
+        }
+
+        if (existente) {
+          // Atualizar dados
+          await prisma.vendedor.update({
+            where: { id: existente.id },
+            data: {
+              nome,
+              ...(email && { email }),
+              ...(telefone && { whatsapp: telefone }),
+              status: inativo ? 'inativo' : 'ativo'
+            }
+          });
+          atualizados++;
+        } else {
+          // Criar novo vendedor
+          await prisma.vendedor.create({
+            data: {
+              nome,
+              email: email || `vendedor_${Date.now()}@gelateria.com`,
+              whatsapp: telefone || '',
+              regiao: 'Aracaju',
+              status: inativo ? 'inativo' : 'ativo',
+              meta_visitas_dia: 10,
+              data_admissao: new Date()
+            }
+          });
+          importados++;
+        }
+      } catch (err: any) {
+        erros.push(`${v.nome || 'sem nome'}: ${err.message}`);
+      }
+    }
+
+    res.json({
+      importados,
+      atualizados,
+      total_omie: todosVendedores.length,
+      erros
+    });
+  } catch (error) {
+    console.error('Erro ao sincronizar vendedores OMIE:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar vendedores com OMIE' });
   }
 });
 

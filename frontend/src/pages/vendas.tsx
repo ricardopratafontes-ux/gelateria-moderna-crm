@@ -31,6 +31,7 @@ export const VendasPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState('');
   const [filtroMes, setFiltroMes] = useState(new Date().toISOString().slice(0, 7));
+  const [syncMsg, setSyncMsg] = useState('');
 
   const [form, setForm] = useState({
     cliente_id: '', valor_total: '', forma_pagamento: 'pix',
@@ -68,6 +69,23 @@ export const VendasPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['vendas'] });
       setShowForm(false);
       setForm({ cliente_id: '', valor_total: '', forma_pagamento: 'pix', parcelas: '1', observacoes: '' });
+    }
+  });
+
+  // Sincronizar vendas do OMIE
+  const syncOmie = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/vendas/sync-omie');
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['vendas'] });
+      setSyncMsg(`OMIE: ${data.importados} importados, ${data.atualizados} atualizados (${data.total_clientes} clientes verificados)${data.erros?.length ? ` | ${data.erros.length} erros` : ''}`);
+      setTimeout(() => setSyncMsg(''), 8000);
+    },
+    onError: () => {
+      setSyncMsg('Erro ao sincronizar vendas com OMIE');
+      setTimeout(() => setSyncMsg(''), 5000);
     }
   });
 
@@ -117,13 +135,22 @@ export const VendasPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900">Vendas</h1>
             <p className="text-sm text-gray-600 mt-1">{(vendas as Venda[]).length} vendas no período</p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-2 text-white rounded-lg font-semibold text-sm"
-            style={{ backgroundColor: COLORS.PRIMARY }}
-          >
-            + Nova Venda
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => syncOmie.mutate()}
+              disabled={syncOmie.isPending}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {syncOmie.isPending ? 'Sincronizando...' : '🔄 Sincronizar OMIE'}
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2 text-white rounded-lg font-semibold text-sm"
+              style={{ backgroundColor: COLORS.PRIMARY }}
+            >
+              + Nova Venda
+            </button>
+          </div>
         </div>
 
         {/* Resumo */}
@@ -141,6 +168,13 @@ export const VendasPage: React.FC = () => {
             <p className="text-2xl font-bold text-yellow-600">R$ {(totalVendas - totalRecebido).toFixed(2)}</p>
           </div>
         </div>
+
+        {/* Sync Message */}
+        {syncMsg && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm">
+            {syncMsg}
+          </div>
+        )}
 
         {/* Filtros */}
         <div className="bg-white rounded-lg shadow p-4">
@@ -178,7 +212,7 @@ export const VendasPage: React.FC = () => {
                     <select required value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm">
                       <option value="">Selecione um cliente</option>
                       {(clientes as any[]).map((c: any) => (
-                        <option key={c.id} value={c.id}>{c.nome}</option>
+                        <option key={c.id} value={c.id}>{c.nome_fantasia || c.nome}</option>
                       ))}
                     </select>
                   </div>
