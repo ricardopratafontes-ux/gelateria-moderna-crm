@@ -450,7 +450,7 @@ if (tempo_parado > 15 * 60 * 1000 && desvio < 500) {
 ## 8️⃣ URLs RELEVANTES
 
 ### Produção
-- Frontend: https://gelateria-moderna.vercel.app
+- Frontend: https://gelateria-moderna-crm.vercel.app
 - Backend: https://gelateria-moderna-crm.onrender.com
 - Banco de dados: Supabase dashboard
 

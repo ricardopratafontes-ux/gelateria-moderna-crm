@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext, createContext } from 'react';
 import api from '../services/api';
 
 interface Usuario {
@@ -8,19 +8,38 @@ interface Usuario {
   role: 'gerente' | 'vendedor';
 }
 
-export function useAuth() {
+interface AuthContextType {
+  usuario: Usuario | null;
+  token: string | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+  isGerente: boolean;
+  isVendedor: boolean;
+  login: (email: string, senha: string) => Promise<Usuario>;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
 
   // Carregar estado inicial do localStorage
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUsuario = localStorage.getItem('usuario');
+    try {
+      const storedToken = localStorage.getItem('token');
+      const storedUsuario = localStorage.getItem('usuario');
 
-    if (storedToken && storedUsuario) {
-      setToken(storedToken);
-      setUsuario(JSON.parse(storedUsuario));
+      if (storedToken && storedUsuario) {
+        setToken(storedToken);
+        setUsuario(JSON.parse(storedUsuario));
+      }
+    } catch (e) {
+      // localStorage corrupted - limpar
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
     }
     setLoading(false);
   }, []);
@@ -49,7 +68,7 @@ export function useAuth() {
   const isGerente = usuario?.role === 'gerente';
   const isVendedor = usuario?.role === 'vendedor';
 
-  return {
+  const value: AuthContextType = {
     usuario,
     token,
     loading,
@@ -59,4 +78,15 @@ export function useAuth() {
     login,
     logout
   };
+
+  return React.createElement(AuthContext.Provider, { value }, children);
+}
+
+export function useAuth(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (!context) {
+    // Fallback para quando não há provider (não deveria acontecer)
+    throw new Error('useAuth deve ser usado dentro de AuthProvider');
+  }
+  return context;
 }
