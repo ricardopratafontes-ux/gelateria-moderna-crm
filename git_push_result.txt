@@ -1,8 +1,1 @@
-=== GIT PUSH Mon May 18 15:40:11 HPBA 2026 ===
-warning: in the working copy of 'git_push_now.sh', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'git_push_result.txt', LF will be replaced by CRLF the next time Git touches it
-[main aa7be17] fix: rate limit TextMeBot - delay 6s entre mensagens WhatsApp
- 3 files changed, 22 insertions(+), 4 deletions(-)
-To https://github.com/ricardopratafontes-ux/gelateria-moderna-crm.git
-   d49ed45..aa7be17  main -> main
-=== DONE ===
+=== GIT PUSH Mon May 18 16:09:12 HPBA 2026 ===
