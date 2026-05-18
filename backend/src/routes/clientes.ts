@@ -414,4 +414,74 @@ router.put('/:id/omie-codigo', auth, async (req, res) => {
   }
 });
 
+// ============================================================
+// POST /api/clientes/sync-omie - Sincronizar dados cadastrais com OMIE (manual)
+// Busca dados atualizados no OMIE para clientes que têm omie_codigo
+// ============================================================
+router.post('/sync-omie', auth, async (req, res) => {
+  try {
+    const clientesComOmie = await prisma.cliente.findMany({
+      where: {
+        omie_codigo: { not: null },
+        status: 'ativo'
+      }
+    });
+
+    if (clientesComOmie.length === 0) {
+      return res.json({ message: 'Nenhum cliente com código OMIE', atualizados: 0 });
+    }
+
+    let atualizados = 0;
+    const erros: string[] = [];
+
+    for (const cliente of clientesComOmie) {
+      try {
+        if (!cliente.omie_codigo) continue;
+
+        const dadosOmie = await omieService.buscarClientePorCodigo(cliente.omie_codigo);
+        if (!dadosOmie) continue;
+
+        const updates: any = {};
+
+        if (dadosOmie.telefone1_numero && dadosOmie.telefone1_numero !== cliente.telefone) {
+          updates.telefone = dadosOmie.telefone1_numero;
+        }
+        if (dadosOmie.email && dadosOmie.email !== cliente.email) {
+          updates.email = dadosOmie.email;
+        }
+        if (dadosOmie.endereco) {
+          const novoEndereco = `${dadosOmie.endereco}, ${dadosOmie.endereco_numero || ''} - ${dadosOmie.bairro || ''}, ${dadosOmie.cidade || ''}`;
+          if (novoEndereco !== cliente.endereco) {
+            updates.endereco = novoEndereco;
+          }
+        }
+        if (dadosOmie.cnpj_cpf && !cliente.cnpj) {
+          updates.cnpj = dadosOmie.cnpj_cpf;
+        }
+        if (dadosOmie.telefone1_numero && !cliente.whatsapp) {
+          updates.whatsapp = dadosOmie.telefone1_numero;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await prisma.cliente.update({
+            where: { id: cliente.id },
+            data: updates
+          });
+          atualizados++;
+        }
+
+        // Rate limit OMIE: 2s entre chamadas
+        await new Promise(r => setTimeout(r, 2000));
+
+      } catch (err: any) {
+        erros.push(`${cliente.nome_fantasia}: ${err.message}`);
+      }
+    }
+
+    res.json({ atualizados, total: clientesComOmie.length, erros });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao sincronizar com OMIE' });
+  }
+});
+
 export default router;

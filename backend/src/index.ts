@@ -98,8 +98,9 @@ app.listen(PORT, () => {
     iniciarPlanejamentoRotaDiaria();
     console.log('[JOBS] Planejamento de rota diária: 7h (todos os dias)');
 
-    iniciarSincronizacaoOMIE();
-    console.log('[JOBS] Sincronização OMIE: a cada 30min');
+    // Sync OMIE removido do cron - agora é manual via botão na página de Clientes
+    // iniciarSincronizacaoOMIE();
+    console.log('[JOBS] Sincronização OMIE: MANUAL (botão na página de Clientes)');
 
     iniciarAlertasCriticos();
     console.log('[JOBS] Alertas críticos: a cada 15min + meio-dia + 17h');

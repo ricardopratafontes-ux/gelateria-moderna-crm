@@ -6,7 +6,7 @@ import { Layout } from '../components/Layout';
 
 interface Cliente {
   id: string;
-  nome: string;
+  nome_fantasia: string;
   cnpj?: string;
   telefone?: string;
   whatsapp?: string;
@@ -17,7 +17,8 @@ interface Cliente {
   segmento?: string;
   status?: string;
   observacoes?: string;
-  media_mensal?: number;
+  omie_codigo?: string;
+  media_mensal_historica?: number;
   media_mensal_customizada?: number;
   ultima_visita?: string;
   ultima_compra?: string;
@@ -40,10 +41,12 @@ export const ClientesPage: React.FC = () => {
   const [buscandoOmie, setBuscandoOmie] = useState(false);
   const [importandoOmie, setImportandoOmie] = useState<string | null>(null);
   const [segmentoImport, setSegmentoImport] = useState('RESTAURANTE');
+  const [sincronizando, setSincronizando] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
 
   // Form state
   const [form, setForm] = useState({
-    nome: '', cnpj: '', telefone: '', whatsapp: '', email: '',
+    nome_fantasia: '', cnpj: '', telefone: '', whatsapp: '', email: '',
     endereco: '', cidade: '', bairro: '', segmento: 'RESTAURANTE',
     status: 'ativo', observacoes: '', media_mensal_customizada: ''
   });
@@ -95,7 +98,7 @@ export const ClientesPage: React.FC = () => {
   });
 
   const resetForm = () => {
-    setForm({ nome: '', cnpj: '', telefone: '', whatsapp: '', email: '', endereco: '', cidade: '', bairro: '', segmento: 'RESTAURANTE', status: 'ativo', observacoes: '', media_mensal_customizada: '' });
+    setForm({ nome_fantasia: '', cnpj: '', telefone: '', whatsapp: '', email: '', endereco: '', cidade: '', bairro: '', segmento: 'RESTAURANTE', status: 'ativo', observacoes: '', media_mensal_customizada: '' });
     setShowForm(false);
     setEditando(null);
   };
@@ -103,7 +106,7 @@ export const ClientesPage: React.FC = () => {
   const abrirEdicao = (cliente: Cliente) => {
     setEditando(cliente);
     setForm({
-      nome: cliente.nome || '',
+      nome_fantasia: cliente.nome_fantasia || '',
       cnpj: cliente.cnpj || '',
       telefone: cliente.telefone || '',
       whatsapp: cliente.whatsapp || '',
@@ -161,9 +164,32 @@ export const ClientesPage: React.FC = () => {
     setImportandoOmie(null);
   };
 
+  // Sincronizar dados dos clientes com OMIE (manual)
+  const sincronizarOmie = async () => {
+    setSincronizando(true);
+    setSyncMsg('Mapeando códigos OMIE...');
+    try {
+      // Etapa 1: Mapear códigos OMIE para clientes que não têm
+      const resMap = await api.post('/clientes/mapear-omie');
+      const mapResult = resMap.data;
+      setSyncMsg(`Mapeados: ${mapResult.mapeados || 0} | Não encontrados: ${mapResult.nao_encontrados?.length || 0}`);
+
+      // Etapa 2: Sincronizar dados cadastrais (endpoint manual)
+      await api.post('/clientes/sync-omie');
+
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      setSyncMsg(`Sincronização concluída! ${mapResult.mapeados || 0} mapeados.`);
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message;
+      setSyncMsg(`Erro: ${msg}`);
+    }
+    setSincronizando(false);
+    setTimeout(() => setSyncMsg(''), 8000);
+  };
+
   // Filtrar por busca
   const clientesFiltrados = (clientes as Cliente[]).filter(c =>
-    !busca || c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+    !busca || c.nome_fantasia?.toLowerCase().includes(busca.toLowerCase()) ||
     c.telefone?.includes(busca) || c.cnpj?.includes(busca)
   );
 
@@ -176,7 +202,15 @@ export const ClientesPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
             <p className="text-sm text-gray-600 mt-1">{clientesFiltrados.length} clientes cadastrados</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={sincronizarOmie}
+              disabled={sincronizando}
+              className="px-4 py-2 border-2 rounded-lg font-semibold text-sm"
+              style={{ borderColor: '#3b82f6', color: '#3b82f6' }}
+            >
+              {sincronizando ? 'Sincronizando...' : '🔄 Sincronizar OMIE'}
+            </button>
             <button
               onClick={() => { setBuscaOmie(''); setResultadosOmie([]); setShowImportOmie(true); }}
               className="px-4 py-2 border-2 rounded-lg font-semibold text-sm"
@@ -193,6 +227,13 @@ export const ClientesPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Mensagem de sync */}
+        {syncMsg && (
+          <div className={`px-4 py-2 rounded-lg text-sm font-medium ${syncMsg.startsWith('Erro') ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
+            {syncMsg}
+          </div>
+        )}
 
         {/* Filtros */}
         <div className="bg-white rounded-lg shadow p-4">
@@ -318,12 +359,12 @@ export const ClientesPage: React.FC = () => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nome Fantasia *</label>
                       <input
                         type="text"
                         required
-                        value={form.nome}
-                        onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                        value={form.nome_fantasia}
+                        onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })}
                         className="w-full border rounded-lg px-3 py-2 text-sm"
                         placeholder="Nome do estabelecimento"
                       />
@@ -480,7 +521,7 @@ export const ClientesPage: React.FC = () => {
               <div key={cliente.id} className="bg-white rounded-lg shadow p-4 border-l-4 hover:shadow-md transition-shadow" style={{ borderColor: COLORS.PRIMARY }}>
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-gray-900 truncate">{cliente.nome}</h3>
+                    <h3 className="font-bold text-gray-900 truncate">{cliente.nome_fantasia}</h3>
                     <p className="text-sm text-gray-600 mt-1">{cliente.endereco || 'Sem endereço'}</p>
                     <p className="text-sm text-gray-600">{cliente.telefone || cliente.whatsapp || 'Sem telefone'}</p>
                   </div>
@@ -489,10 +530,24 @@ export const ClientesPage: React.FC = () => {
                   </span>
                 </div>
 
+                {cliente.email && (
+                  <p className="text-xs text-gray-500 mt-1 truncate">{cliente.email}</p>
+                )}
+
                 <div className="mt-3 flex flex-wrap gap-2">
                   {cliente.segmento && (
                     <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-medium">
                       {cliente.segmento}
+                    </span>
+                  )}
+                  {cliente.omie_codigo && (
+                    <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-medium">
+                      OMIE: {cliente.omie_codigo}
+                    </span>
+                  )}
+                  {cliente.cnpj && (
+                    <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs">
+                      {cliente.cnpj}
                     </span>
                   )}
                   {cliente.ultima_visita && (
@@ -502,9 +557,9 @@ export const ClientesPage: React.FC = () => {
                   )}
                 </div>
 
-                {cliente.media_mensal_customizada || cliente.media_mensal ? (
+                {cliente.media_mensal_customizada || cliente.media_mensal_historica ? (
                   <p className="text-sm font-semibold mt-2" style={{ color: COLORS.PRIMARY }}>
-                    Média: R$ {(cliente.media_mensal_customizada || cliente.media_mensal || 0).toFixed(2)}
+                    Média: R$ {(cliente.media_mensal_customizada || cliente.media_mensal_historica || 0).toFixed(2)}
                   </p>
                 ) : null}
 
