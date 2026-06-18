@@ -22,9 +22,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Token do CRM expirou → reentra pelo login único da Intranet
       localStorage.removeItem('token');
       localStorage.removeItem('usuario');
-      window.location.href = '/login';
+      window.location.href = '/intranet';
     }
     return Promise.reject(error);
   }

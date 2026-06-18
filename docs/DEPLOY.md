@@ -69,10 +69,10 @@ No painel do serviço → Environment, adicione TODAS:
 DATABASE_URL=postgresql://....(do Supabase, connection pooling porta 6543)
 DIRECT_URL=postgresql://....(do Supabase, conexão direta porta 5432)
 JWT_SECRET=gere-com-openssl-rand-base64-32
-OMIE_APP_SECRET=7bd5bd04c7a6e1f8ad2fb6feb6d5d6ff
-OMIE_API_KEY=7185468814524
-GOOGLE_MAPS_API_KEY=AIzaSyB-hFrZWSa2xhF1cDhiOw-7wsaIIvEI1q4
-TEXTMEBOT_API_KEY=S5S38GqJLM59
+OMIE_APP_SECRET=<your-omie-app-secret>
+OMIE_API_KEY=<your-omie-api-key>
+GOOGLE_MAPS_API_KEY=<your-google-maps-api-key>
+TEXTMEBOT_API_KEY=<your-textmebot-api-key>
 TEXTMEBOT_PHONE=5579988298722
 WHATSAPP_GERENTE=5579981319569
 SUPABASE_URL=https://seu-projeto.supabase.co
@@ -102,7 +102,7 @@ PORT=3001
 ### 3.2 Variáveis de ambiente
 ```
 VITE_API_URL=https://gelateria-moderna-crm.onrender.com/api
-VITE_GOOGLE_MAPS_KEY=AIzaSyB-hFrZWSa2xhF1cDhiOw-7wsaIIvEI1q4
+VITE_GOOGLE_MAPS_KEY=<your-google-maps-api-key>
 ```
 
 ### 3.3 Configurar domínio

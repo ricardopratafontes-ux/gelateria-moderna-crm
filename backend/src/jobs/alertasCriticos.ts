@@ -6,42 +6,13 @@ import { configService } from '../services/configService';
 const prisma = new PrismaClient();
 
 export function iniciarAlertasCriticos() {
-  // Executa a cada 15 minutos
-  cron.schedule('*/15 * * * *', async () => {
+  // Alerta único consolidado às 18h (seg-sáb)
+  cron.schedule('0 18 * * 1-6', async () => {
     try {
-      if (await configService.getBool('alerta_lead_risco_ativo')) {
-        await verificarLeadsEmRisco();
-      }
-      if (await configService.getBool('alerta_vendedor_parado_ativo')) {
-        await verificarVendedorParado();
-      }
-      if (await configService.getBool('alerta_meta_diaria_ativo')) {
-        await verificarMetaDiaria();
-      }
+      console.log('[ALERTA] Gerando resumo consolidado 18h...');
+      await alertaConsolidado18h();
     } catch (error) {
-      console.error('[ALERTA] Erro nos alertas críticos:', error);
-    }
-  });
-
-  // Alerta meio-dia: progresso da meta
-  cron.schedule('59 11 * * 1-6', async () => {
-    try {
-      if (await configService.getBool('alerta_progresso_meiodia_ativo')) {
-        await alertaProgressoMeioDia();
-      }
-    } catch (error) {
-      console.error('[ALERTA] Erro no alerta meio-dia:', error);
-    }
-  });
-
-  // Alerta fim do dia: resumo
-  cron.schedule('0 17 * * 1-6', async () => {
-    try {
-      if (await configService.getBool('alerta_resumo_fim_dia_ativo')) {
-        await alertaResumoFimDoDia();
-      }
-    } catch (error) {
-      console.error('[ALERTA] Erro no alerta fim do dia:', error);
+      console.error('[ALERTA] Erro no alerta consolidado 18h:', error);
     }
   });
 }
@@ -187,6 +158,67 @@ async function alertaProgressoMeioDia() {
   }
 
   await whatsappService.enviarMensagem(whatsappGerente, resumo);
+}
+
+async function alertaConsolidado18h() {
+  const whatsappGerente = process.env.WHATSAPP_GERENTE;
+  if (!whatsappGerente) return;
+
+  const metaVisitasDia = await configService.getNumber('meta_visitas_dia');
+  const prazoHoras = await configService.getNumber('prazo_retorno_lead_horas');
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  let msg = '*📊 Resumo do dia — 18h*\n\n';
+
+  // === VENDEDORES: visitas e propostas ===
+  const vendedores = await prisma.vendedor.findMany({ where: { status: 'ativo' } });
+
+  for (const vendedor of vendedores) {
+    const visitasHoje = await prisma.atividade.count({
+      where: {
+        vendedor_id: vendedor.id,
+        data_hora_inicio: { gte: hoje },
+        resultado: 'concluida'
+      }
+    });
+
+    const propostasHoje = await prisma.proposta.count({
+      where: {
+        vendedor_id: vendedor.id,
+        data_criacao: { gte: hoje }
+      }
+    });
+
+    const emoji = visitasHoje >= metaVisitasDia ? '🏆' : visitasHoje >= 7 ? '✅' : '❌';
+    msg += `${emoji} *${vendedor.nome}*\n   Visitas: ${visitasHoje}/${metaVisitasDia} | Propostas: ${propostasHoje}\n`;
+  }
+
+  // === LEADS EM RISCO ===
+  const leads = await prisma.lead.findMany({
+    where: { status: { in: ['novo', 'contatado', 'interessado'] } }
+  });
+
+  const leadsEmRisco = leads.filter(lead => {
+    const ref = lead.data_ultimo_contato || lead.data_criacao;
+    const horas = (Date.now() - ref.getTime()) / (1000 * 60 * 60);
+    return horas > prazoHoras;
+  });
+
+  if (leadsEmRisco.length > 0) {
+    msg += `\n⚠️ *${leadsEmRisco.length} lead(s) em risco (>${prazoHoras}h sem contato):*\n`;
+    for (const lead of leadsEmRisco.slice(0, 5)) {
+      const ref = lead.data_ultimo_contato || lead.data_criacao;
+      const horas = Math.floor((Date.now() - ref.getTime()) / (1000 * 60 * 60));
+      msg += `   • ${lead.nome} — ${horas}h sem contato\n`;
+    }
+    if (leadsEmRisco.length > 5) {
+      msg += `   ... e mais ${leadsEmRisco.length - 5}\n`;
+    }
+  }
+
+  await whatsappService.enviarMensagem(whatsappGerente, msg);
 }
 
 async function alertaResumoFimDoDia() {
