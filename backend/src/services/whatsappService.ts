@@ -6,7 +6,7 @@ import axios from 'axios';
 
 // Controle de rate limit - garante intervalo mínimo entre envios
 let ultimoEnvio = 0;
-const INTERVALO_MINIMO_MS = 6000; // 6 segundos entre mensagens (margem de segurança)
+const INTERVALO_MINIMO_MS = 20000; // 20 segundos entre mensagens (combinado com o Ricardo)
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));

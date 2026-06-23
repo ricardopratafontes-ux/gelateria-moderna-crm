@@ -6,15 +6,16 @@ import { configService } from '../services/configService';
 const prisma = new PrismaClient();
 
 export function iniciarAlertasCriticos() {
-  // Alerta único consolidado às 18h (seg-sáb)
-  cron.schedule('0 18 * * 1-6', async () => {
+  // Envio único diário às 18h30 (combinado com o Ricardo). Fuso: definido pelo
+  // servidor/TZ — confirmar que o backend roda em horário de Brasília.
+  cron.schedule('30 18 * * *', async () => {
     try {
-      console.log('[ALERTA] Gerando resumo consolidado 18h...');
+      console.log('[ALERTA] Gerando resumo consolidado 18h30...');
       await alertaConsolidado18h();
     } catch (error) {
-      console.error('[ALERTA] Erro no alerta consolidado 18h:', error);
+      console.error('[ALERTA] Erro no alerta consolidado 18h30:', error);
     }
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 }
 
 async function verificarLeadsEmRisco() {

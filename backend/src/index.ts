@@ -155,23 +155,20 @@ app.listen(PORT, () => {
 
   // Iniciar jobs agendados
   if (process.env.NODE_ENV !== 'test') {
-    iniciarPlanejamentoRotaDiaria();
-    console.log('[JOBS] Planejamento de rota diária: 7h (todos os dias)');
+    // POR ENQUANTO (combinado com o Ricardo): apenas UM envio diário de WhatsApp,
+    // às 18h30 (alertas críticos ao gerente). Os demais jobs com envio de WhatsApp
+    // ficam DESLIGADOS por ora — reativar quando quiser removendo o comentário.
+    iniciarAlertasCriticos();
+    console.log('[JOBS] Envio diário (alertas ao gerente): 18h30');
 
-    // Sync OMIE removido do cron - agora é manual via botão na página de Clientes
-    // iniciarSincronizacaoOMIE();
+    // iniciarPlanejamentoRotaDiaria(); // 7h — rota aos vendedores (desativado por ora)
+    // iniciarRelatorioSemanal();       // sábado 9h (desativado por ora)
+    // iniciarRelatorioMensal();        // dia 5 às 8h (desativado por ora)
+    // iniciarSincronizacaoOMIE();      // sync OMIE: MANUAL (botão na página de Clientes)
+    console.log('[JOBS] Demais envios (rota 7h, semanal, mensal): DESLIGADOS por ora');
     console.log('[JOBS] Sincronização OMIE: MANUAL (botão na página de Clientes)');
 
-    iniciarAlertasCriticos();
-    console.log('[JOBS] Alertas críticos: a cada 15min + meio-dia + 17h');
-
-    iniciarRelatorioSemanal();
-    console.log('[JOBS] Relatório semanal: sábado 9h');
-
-    iniciarRelatorioMensal();
-    console.log('[JOBS] Relatório mensal: dia 5 às 8h');
-
-    console.log('\n[JOBS] Todos os jobs agendados com sucesso!\n');
+    console.log('\n[JOBS] Jobs agendados.\n');
   }
 });
 
