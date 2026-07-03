@@ -155,11 +155,11 @@ app.listen(PORT, () => {
 
   // Iniciar jobs agendados
   if (process.env.NODE_ENV !== 'test') {
-    // POR ENQUANTO (combinado com o Ricardo): apenas UM envio diário de WhatsApp,
-    // às 18h30 (alertas críticos ao gerente). Os demais jobs com envio de WhatsApp
-    // ficam DESLIGADOS por ora — reativar quando quiser removendo o comentário.
-    iniciarAlertasCriticos();
-    console.log('[JOBS] Envio diário (alertas ao gerente): 18h30');
+    // SUSPENSO TEMPORARIAMENTE (Ricardo, 2026-07-03) — WhatsApp desabilitado
+    // enquanto a ferramenta passa por correções. Reativar quando pronto.
+    // iniciarAlertasCriticos();
+    // console.log('[JOBS] Envio diário (alertas ao gerente): 18h30');
+    console.log('[JOBS] Alertas WhatsApp: SUSPENSO (kill switch ativo)');
 
     // iniciarPlanejamentoRotaDiaria(); // 7h — rota aos vendedores (desativado por ora)
     // iniciarRelatorioSemanal();       // sábado 9h (desativado por ora)
