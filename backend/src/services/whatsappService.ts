@@ -35,7 +35,7 @@ function normalizarTelefone(telefone: string): string {
 export const whatsappService = {
   // ENVIAR MENSAGEM WHATSAPP (com rate limiting automático)
   async enviarMensagem(telefone: string, mensagem: string) {
-    // ===== SUSPENSO TEMPORARIAMENTE (Ricardo, 2026-07-03) =====
+    // ===== SUSPENSO TEMPORARIAMENTE (Ricardo, 2026-07-03 18:15) =====
     // Todos os envios de WhatsApp estão desabilitados enquanto a
     // ferramenta passa por correções. Remover este bloco para reativar.
     console.log(`[WHATSAPP] SUSPENSO — mensagem NÃO enviada para ${telefone}`);
