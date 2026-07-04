@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { configService } from './configService';
 
 // TextMeBot usa GET com query params (não POST com JSON)
 // Docs: https://textmebot.com/send-text-messages/
@@ -35,12 +36,13 @@ function normalizarTelefone(telefone: string): string {
 export const whatsappService = {
   // ENVIAR MENSAGEM WHATSAPP (com rate limiting automático)
   async enviarMensagem(telefone: string, mensagem: string) {
-    // ===== SUSPENSO TEMPORARIAMENTE (Ricardo, 2026-07-03 18:15) =====
-    // Todos os envios de WhatsApp estão desabilitados enquanto a
-    // ferramenta passa por correções. Remover este bloco para reativar.
-    console.log(`[WHATSAPP] SUSPENSO — mensagem NÃO enviada para ${telefone}`);
-    return { success: false, error: 'Envio de WhatsApp suspenso temporariamente' };
-    // ===== FIM SUSPENSÃO =====
+    // Interruptor-mestre no banco (parametro 'whatsapp_ativo'). Enquanto for
+    // 'false', NENHUMA mensagem sai — controlável pelo painel/banco sem deploy.
+    const whatsappAtivo = await configService.getBool('whatsapp_ativo');
+    if (!whatsappAtivo) {
+      console.log(`[WHATSAPP] DESATIVADO (whatsapp_ativo=false) — mensagem NÃO enviada para ${telefone}`);
+      return { success: false, error: 'Envio de WhatsApp desativado nas configurações' };
+    }
 
     try {
       const apiKey = process.env.TEXTMEBOT_API_KEY;

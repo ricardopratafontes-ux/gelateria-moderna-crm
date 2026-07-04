@@ -162,6 +162,12 @@ async function alertaProgressoMeioDia() {
 }
 
 async function alertaConsolidado18h() {
+  // Respeitar o toggle do painel de configurações (Ricardo desliga/liga no CRM)
+  if (!(await configService.getBool('alerta_resumo_fim_dia_ativo'))) {
+    console.log('[ALERTA] Resumo 18h30 desativado nas configurações — não enviado');
+    return;
+  }
+
   const whatsappGerente = process.env.WHATSAPP_GERENTE;
   if (!whatsappGerente) return;
 

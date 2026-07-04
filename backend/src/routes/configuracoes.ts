@@ -8,6 +8,7 @@ const prisma = new PrismaClient();
 // Valores padrão das configurações
 const DEFAULTS: Record<string, { valor: string; descricao: string }> = {
   // Alertas - ativar/desativar
+  'whatsapp_ativo': { valor: 'true', descricao: 'Interruptor-mestre: desliga TODOS os envios de WhatsApp' },
   'alerta_lead_risco_ativo': { valor: 'true', descricao: 'Alerta quando lead passa 48h sem contato' },
   'alerta_vendedor_parado_ativo': { valor: 'true', descricao: 'Alerta quando vendedor fica sem atividade' },
   'alerta_meta_diaria_ativo': { valor: 'true', descricao: 'Alerta quando meta diária está em risco (após 15h)' },
@@ -87,7 +88,7 @@ router.put('/', async (req, res) => {
       return res.status(400).json({ error: 'Envie { configuracoes: [{ chave, valor }] }' });
     }
 
-    const resultados = [];
+    const resultados: unknown[] = [];
 
     for (const { chave, valor } of configs) {
       const descricao = DEFAULTS[chave]?.descricao || '';

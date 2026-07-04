@@ -9,6 +9,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 // Defaults idênticos ao configuracoes.ts (fonte única de verdade)
 const DEFAULTS: Record<string, string> = {
+  'whatsapp_ativo': 'true',
   'alerta_lead_risco_ativo': 'true',
   'alerta_vendedor_parado_ativo': 'true',
   'alerta_meta_diaria_ativo': 'true',
